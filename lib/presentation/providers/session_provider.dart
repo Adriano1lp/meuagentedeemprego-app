@@ -3,45 +3,110 @@ import 'package:hive/hive.dart';
 
 import '../../data/models/message_model.dart';
 
-final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((
-  ref,
-) {
-  final box = Hive.box<String>('app_session');
-  return SessionNotifier(box);
-});
+final sessionProvider =
+    StateNotifierProvider<SessionNotifier, SessionState>((ref) {
+      final box = Hive.box<String>('app_session');
+      return SessionNotifier(box);
+    });
 
 class SessionState {
+  final String? authToken;
   final String? userId;
+  final String? email;
+  final String? displayName;
+  final bool hasCv;
 
-  const SessionState({this.userId});
+  const SessionState({
+    this.authToken,
+    this.userId,
+    this.email,
+    this.displayName,
+    this.hasCv = false,
+  });
 
-  bool get hasUser => userId != null && userId!.trim().isNotEmpty;
+  bool get hasSession => authToken != null && authToken!.trim().isNotEmpty;
 
-  SessionState copyWith({String? userId, bool clearUser = false}) {
-    return SessionState(userId: clearUser ? null : (userId ?? this.userId));
+  SessionState copyWith({
+    String? authToken,
+    String? userId,
+    String? email,
+    String? displayName,
+    bool? hasCv,
+    bool clear = false,
+  }) {
+    if (clear) {
+      return const SessionState();
+    }
+
+    return SessionState(
+      authToken: authToken ?? this.authToken,
+      userId: userId ?? this.userId,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      hasCv: hasCv ?? this.hasCv,
+    );
   }
 }
 
 class SessionNotifier extends StateNotifier<SessionState> {
   SessionNotifier(this._box)
-    : super(SessionState(userId: _box.get(_userIdKey)));
+    : super(
+        SessionState(
+          authToken: _box.get(_authTokenKey),
+          userId: _box.get(_userIdKey),
+          email: _box.get(_emailKey),
+          displayName: _box.get(_displayNameKey),
+          hasCv: _box.get(_hasCvKey) == 'true',
+        ),
+      );
 
+  static const String _authTokenKey = 'auth_token';
   static const String _userIdKey = 'user_id';
+  static const String _emailKey = 'email';
+  static const String _displayNameKey = 'display_name';
+  static const String _hasCvKey = 'has_cv';
 
   final Box<String> _box;
 
-  Future<void> setUserId(String userId) async {
-    final normalized = normalizeUserId(userId);
-    if (state.userId != normalized) {
+  Future<void> saveSession({
+    required String authToken,
+    required String userId,
+    required String email,
+    required String displayName,
+    required bool hasCv,
+  }) async {
+    final normalizedUserId = normalizeUserId(userId);
+    if (state.userId != normalizedUserId) {
       await Hive.box<MessageModel>('chat_history').clear();
     }
-    await _box.put(_userIdKey, normalized);
-    state = SessionState(userId: normalized);
+
+    await _box.put(_authTokenKey, authToken);
+    await _box.put(_userIdKey, normalizedUserId);
+    await _box.put(_emailKey, email.trim().toLowerCase());
+    await _box.put(_displayNameKey, displayName.trim());
+    await _box.put(_hasCvKey, hasCv.toString());
+
+    state = SessionState(
+      authToken: authToken,
+      userId: normalizedUserId,
+      email: email.trim().toLowerCase(),
+      displayName: displayName.trim(),
+      hasCv: hasCv,
+    );
+  }
+
+  Future<void> updateHasCv(bool hasCv) async {
+    await _box.put(_hasCvKey, hasCv.toString());
+    state = state.copyWith(hasCv: hasCv);
   }
 
   Future<void> clear() async {
     await Hive.box<MessageModel>('chat_history').clear();
+    await _box.delete(_authTokenKey);
     await _box.delete(_userIdKey);
+    await _box.delete(_emailKey);
+    await _box.delete(_displayNameKey);
+    await _box.delete(_hasCvKey);
     state = const SessionState();
   }
 
@@ -52,7 +117,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
         .replaceAll(RegExp(r'^[_\.-]+|[_\.-]+$'), '');
 
     if (normalized.isEmpty) {
-      throw const FormatException('Informe um nome de usuario valido.');
+      throw const FormatException('Informe um identificador de usuario valido.');
     }
 
     return normalized;

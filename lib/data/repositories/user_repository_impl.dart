@@ -14,24 +14,35 @@ class UserRepositoryImpl {
 
   final Dio _dio;
 
-  Options _userOptions(String userId) {
+  Options _userOptions({
+    String? authToken,
+    String? userId,
+  }) {
+    if (authToken != null && authToken.trim().isNotEmpty) {
+      return Options(headers: {'Authorization': 'Bearer $authToken'});
+    }
     return Options(headers: {'X-User-Id': userId});
   }
 
   Future<void> uploadCv({
-    required String userId,
-    required String filePath,
+    required String authToken,
     required String fileName,
+    String? filePath,
+    List<int>? fileBytes,
   }) async {
     try {
+      final multipartFile = fileBytes != null
+          ? MultipartFile.fromBytes(fileBytes, filename: fileName)
+          : await MultipartFile.fromFile(filePath!, filename: fileName);
+
       final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+        'file': multipartFile,
       });
 
       final response = await _dio.post(
         '/users/me/upload-cv',
         data: formData,
-        options: _userOptions(userId),
+        options: _userOptions(authToken: authToken),
       );
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -65,11 +76,11 @@ class UserRepositoryImpl {
     }
   }
 
-  Future<void> rebuildEmbeddings({required String userId}) async {
+  Future<void> rebuildEmbeddings({required String authToken}) async {
     try {
       final response = await _dio.post(
         '/users/me/rebuild-embeddings',
-        options: _userOptions(userId),
+        options: _userOptions(authToken: authToken),
       );
 
       if (response.statusCode != 200 && response.statusCode != 201) {

@@ -11,6 +11,7 @@ class ChatRepositoryImpl {
   );
 
   final Box<MessageModel> _box;
+  final String? _authToken;
   final String? _userId;
   final Dio _dio = Dio(
     BaseOptions(
@@ -20,19 +21,24 @@ class ChatRepositoryImpl {
     ),
   );
 
-  ChatRepositoryImpl(this._box, {String? userId}) : _userId = userId;
+  ChatRepositoryImpl(this._box, {String? authToken, String? userId})
+    : _authToken = authToken,
+      _userId = userId;
 
   Future<ChatMessage> sendMessage(String text) async {
+    final authToken = _authToken;
     final userId = _userId;
-    if (userId == null || userId.trim().isEmpty) {
-      throw Exception('Cadastre um usuario antes de enviar mensagens.');
+
+    if ((authToken == null || authToken.trim().isEmpty) &&
+        (userId == null || userId.trim().isEmpty)) {
+      throw Exception('Entre na sua conta antes de enviar mensagens.');
     }
 
     try {
       final response = await _dio.post(
         '/processar',
         data: {'texto': text},
-        options: Options(headers: {'X-User-Id': userId}),
+        options: Options(headers: _buildAuthHeaders()),
       );
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -108,5 +114,14 @@ class ChatRepositoryImpl {
     }
 
     return null;
+  }
+
+  Map<String, String> _buildAuthHeaders() {
+    final authToken = _authToken;
+    if (authToken != null && authToken.trim().isNotEmpty) {
+      return {'Authorization': 'Bearer $authToken'};
+    }
+
+    return {'X-User-Id': _userId ?? ''};
   }
 }

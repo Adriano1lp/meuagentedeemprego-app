@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'data/repositories/auth_repository_impl.dart';
 import 'data/models/message_model.dart';
+import 'presentation/screens/auth_screen.dart';
 import 'presentation/screens/chat_screen.dart';
-import 'presentation/screens/user_registration_screen.dart';
 import 'presentation/providers/session_provider.dart';
+import 'presentation/screens/user_registration_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -199,14 +201,72 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AppEntryPoint extends ConsumerWidget {
+class AppEntryPoint extends ConsumerStatefulWidget {
   const AppEntryPoint({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppEntryPoint> createState() => _AppEntryPointState();
+}
+
+class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
+  final AuthRepositoryImpl _repository = AuthRepositoryImpl();
+  bool _isBootstrapping = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrapSession();
+  }
+
+  Future<void> _bootstrapSession() async {
+    final session = ref.read(sessionProvider);
+    if (!session.hasSession) {
+      if (mounted) {
+        setState(() {
+          _isBootstrapping = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final authToken = session.authToken!;
+      final currentUser = await _repository.getCurrentUser(authToken);
+      final status = await _repository.getUserStatus(authToken);
+      await ref.read(sessionProvider.notifier).saveSession(
+        authToken: authToken,
+        userId: currentUser.userId,
+        email: currentUser.email,
+        displayName: currentUser.displayName,
+        hasCv: status.hasCv && status.hasEmbeddings,
+      );
+    } catch (_) {
+      await ref.read(sessionProvider.notifier).clear();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBootstrapping = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
-    return session.hasUser
-        ? const ChatScreen()
-        : const UserRegistrationScreen();
+
+    if (_isBootstrapping) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (!session.hasSession) {
+      return const AuthScreen();
+    }
+
+    return session.hasCv ? const ChatScreen() : const UserRegistrationScreen();
   }
 }

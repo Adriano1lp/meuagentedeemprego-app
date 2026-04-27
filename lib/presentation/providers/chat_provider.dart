@@ -8,8 +8,14 @@ import 'session_provider.dart';
 
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   final box = Hive.box<MessageModel>('chat_history');
-  final userId = ref.watch(sessionProvider).userId;
-  return ChatNotifier(ChatRepositoryImpl(box, userId: userId));
+  final session = ref.watch(sessionProvider);
+  return ChatNotifier(
+    ChatRepositoryImpl(
+      box,
+      authToken: session.authToken,
+      userId: session.userId,
+    ),
+  );
 });
 
 class ChatState {

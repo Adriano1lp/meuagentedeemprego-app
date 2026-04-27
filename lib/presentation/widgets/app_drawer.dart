@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/chat_repository_impl.dart';
 import '../providers/session_provider.dart';
+import '../screens/auth_screen.dart';
 import '../screens/chat_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/user_registration_screen.dart';
@@ -19,7 +20,10 @@ class AppDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userId = ref.watch(sessionProvider).userId;
+    final session = ref.watch(sessionProvider);
+    final userId = session.userId;
+    final displayName = session.displayName;
+    final email = session.email;
 
     return Drawer(
       child: Container(
@@ -76,12 +80,21 @@ class AppDrawer extends ConsumerWidget {
                         border: Border.all(color: _ink, width: 2),
                       ),
                       child: Text(
-                        'Usuario: $userId',
+                        'Conta: ${displayName ?? userId}',
                         style: Theme.of(
                           context,
                         ).textTheme.bodySmall?.copyWith(color: _ink),
                       ),
                     ),
+                    if (email != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        email,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: _ink),
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -125,8 +138,8 @@ class AppDrawer extends ConsumerWidget {
               child: _DrawerTile(
                 color: _yellow,
                 icon: Icons.badge_outlined,
-                title: 'Cadastro',
-                subtitle: 'Atualizar usuario e reenviar curriculo',
+                title: 'Curriculo',
+                subtitle: 'Atualizar upload e embeddings',
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -175,8 +188,7 @@ class AppDrawer extends ConsumerWidget {
                           if (!context.mounted) return;
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  const UserRegistrationScreen(),
+                              builder: (context) => const AuthScreen(),
                             ),
                             (route) => false,
                           );
@@ -184,7 +196,7 @@ class AppDrawer extends ConsumerWidget {
                         style: OutlinedButton.styleFrom(
                           backgroundColor: _paper,
                         ),
-                        child: const Text('Trocar usuario'),
+                        child: const Text('Sair'),
                       ),
                     ],
                   ],

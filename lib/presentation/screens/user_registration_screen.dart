@@ -23,32 +23,16 @@ class _UserRegistrationScreenState
   static const Color _blue = Color(0xFF87D2FF);
   static const Color _green = Color(0xFFB6F36A);
 
-  final TextEditingController _nameController = TextEditingController();
   final UserRepositoryImpl _repository = UserRepositoryImpl();
 
   PlatformFile? _selectedFile;
   bool _isSubmitting = false;
 
-  @override
-  void initState() {
-    super.initState();
-    final currentUserId = ref.read(sessionProvider).userId;
-    if (currentUserId != null) {
-      _nameController.text = currentUserId;
-    }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['txt', 'pdf'],
-      withData: false,
+      withData: true,
     );
 
     if (result == null || result.files.isEmpty) return;
@@ -59,16 +43,21 @@ class _UserRegistrationScreenState
   }
 
   Future<void> _submit() async {
-    final rawName = _nameController.text.trim();
     final file = _selectedFile;
+    final session = ref.read(sessionProvider);
 
-    if (rawName.isEmpty) {
-      _showMessage('Informe o nome do usuario.');
+    if (session.authToken == null || session.authToken!.trim().isEmpty) {
+      _showMessage('Sessao expirada. Entre novamente.');
       return;
     }
 
-    if (file == null || file.path == null) {
+    if (file == null) {
       _showMessage('Selecione um arquivo .txt ou .pdf.');
+      return;
+    }
+
+    if (file.path == null && file.bytes == null) {
+      _showMessage('Nao foi possivel ler o arquivo selecionado.');
       return;
     }
 
@@ -77,16 +66,15 @@ class _UserRegistrationScreenState
     });
 
     try {
-      final userId = SessionNotifier.normalizeUserId(rawName);
-
       await _repository.uploadCv(
-        userId: userId,
-        filePath: file.path!,
+        authToken: session.authToken!,
         fileName: file.name,
+        filePath: file.path,
+        fileBytes: file.bytes,
       );
-      await _repository.rebuildEmbeddings(userId: userId);
+      await _repository.rebuildEmbeddings(authToken: session.authToken!);
 
-      await ref.read(sessionProvider.notifier).setUserId(userId);
+      await ref.read(sessionProvider.notifier).updateHasCv(true);
 
       if (!mounted) return;
 
@@ -95,14 +83,14 @@ class _UserRegistrationScreenState
         ..showSnackBar(
           const SnackBar(
             content: Text(
-              'Upload concluido e curriculo processado com sucesso.',
+              'Curriculo enviado e processado com sucesso.',
             ),
           ),
         );
 
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const ChatScreen()));
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const ChatScreen()),
+      );
     } catch (e) {
       if (!mounted) return;
       _showMessage(e.toString().replaceFirst('Exception: ', ''));
@@ -118,9 +106,10 @@ class _UserRegistrationScreenState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final session = ref.watch(sessionProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Cadastro')),
+      appBar: AppBar(title: const Text('Enviar curriculo')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
@@ -141,20 +130,32 @@ class _UserRegistrationScreenState
                       ),
                       decoration: _chipBox(_paper),
                       child: Text(
-                        'Conectado com a API',
+                        'Conta autenticada',
                         style: theme.textTheme.bodySmall?.copyWith(color: _ink),
                       ),
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      'Cadastre o usuario e envie o curriculo',
+                      'Finalize sua conta com o curriculo',
                       style: theme.textTheme.displayMedium,
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'O nome do usuario deve ser unico e sera utilizado para identificar seu curriculo. O arquivo do curriculo deve estar em formato .txt ou .pdf e conter as informacoes de experiencia, formacao academica e idiomas seguindo o padrao definido, se desejar adiconar alguma ferramenta especifica da sua profissa descreva tambem. Essas informacoes sera usada no embedding do seu usuario.',
+                      'Depois do upload em ${ChatRepositoryImpl.apiBaseUrl}/users/me/upload-cv, o app executa /users/me/rebuild-embeddings para deixar sua analise pronta em qualquer dispositivo.',
                       style: theme.textTheme.bodyLarge,
                     ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Conta: ${session.displayName ?? session.userId ?? 'Usuario'}',
+                      style: theme.textTheme.titleMedium?.copyWith(color: _ink),
+                    ),
+                    if (session.email != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        session.email!,
+                        style: theme.textTheme.bodyMedium?.copyWith(color: _ink),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -166,16 +167,6 @@ class _UserRegistrationScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Nome do usuario', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _nameController,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        hintText: 'Ex: adriano_silva',
-                      ),
-                    ),
-                    const SizedBox(height: 18),
                     Text(
                       'Arquivo do curriculo',
                       style: theme.textTheme.titleMedium,
@@ -226,16 +217,15 @@ class _UserRegistrationScreenState
                                 height: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    _ink,
-                                  ),
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(_ink),
                                 ),
                               )
                             : const Icon(Icons.cloud_upload_outlined),
                         label: Text(
                           _isSubmitting
                               ? 'Enviando e processando...'
-                              : 'Enviar cadastro',
+                              : 'Enviar curriculo',
                         ),
                       ),
                     ),
