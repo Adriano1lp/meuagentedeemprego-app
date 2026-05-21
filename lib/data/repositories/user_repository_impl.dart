@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'chat_repository_impl.dart';
 
@@ -10,7 +11,19 @@ class UserRepositoryImpl {
           connectTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 30),
         ),
+      ) {
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        LogInterceptor(
+          requestHeader: true,
+          requestBody: false,
+          responseHeader: false,
+          responseBody: false,
+          error: true,
+        ),
       );
+    }
+  }
 
   final Dio _dio;
 
@@ -30,6 +43,14 @@ class UserRepositoryImpl {
     String? filePath,
     List<int>? fileBytes,
   }) async {
+    if (fileName.trim().isEmpty) {
+      throw Exception('Nome do arquivo invalido');
+    }
+
+    if (fileBytes == null && (filePath == null || filePath.trim().isEmpty)) {
+      throw Exception('Nao foi possivel ler o arquivo selecionado');
+    }
+
     try {
       final multipartFile = fileBytes != null
           ? MultipartFile.fromBytes(fileBytes, filename: fileName)

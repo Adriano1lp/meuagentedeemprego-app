@@ -5,7 +5,9 @@ import '../../data/repositories/chat_repository_impl.dart';
 import '../providers/session_provider.dart';
 import '../screens/auth_screen.dart';
 import '../screens/chat_screen.dart';
+import '../screens/cover_letter_screen.dart';
 import '../screens/history_screen.dart';
+import '../screens/job_search_screen.dart';
 import '../screens/user_registration_screen.dart';
 
 class AppDrawer extends ConsumerWidget {
@@ -128,6 +130,42 @@ class AppDrawer extends ConsumerWidget {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const HistoryScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              child: _DrawerTile(
+                color: const Color(0xFF87D2FF),
+                icon: Icons.mark_email_read_outlined,
+                title: 'Carta',
+                subtitle: 'Gerar apresentacao em PDF',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CoverLetterScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              child: _DrawerTile(
+                color: const Color(0xFFFFC7DE),
+                icon: Icons.travel_explore_rounded,
+                title: 'Buscar vagas',
+                subtitle: 'Pesquisar oportunidades e abrir links',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const JobSearchScreen(),
                     ),
                   );
                 },

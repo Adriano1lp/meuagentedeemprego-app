@@ -32,13 +32,14 @@ class AuthenticatedPdfOpener {
         ),
       );
 
-      final response = await dio.getUri<List<int>>(uri);
+      final downloadUri = _resolveDownloadUri(uri);
+      final response = await dio.getUri<List<int>>(downloadUri);
       final bytes = response.data;
       if (bytes == null || bytes.isEmpty) {
         throw Exception('Resposta vazia ao baixar o PDF.');
       }
 
-      final fileName = _buildDownloadFileName(userId, uri);
+      final fileName = _buildDownloadFileName(userId, downloadUri);
       final fileHandler = createPdfFileHandler();
       await fileHandler.openPdf(bytes: bytes, fileName: fileName);
     } on DioException catch (e) {
@@ -62,12 +63,37 @@ class AuthenticatedPdfOpener {
 
   static String _buildDownloadFileName(String userId, Uri uri) {
     final lastSegment = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
-    final extension = lastSegment.toLowerCase().endsWith('.pdf') ? '.pdf' : '.pdf';
     final safeUserId = userId
         .trim()
         .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_')
         .replaceAll(RegExp(r'_+'), '_');
+    final safeFileName = lastSegment
+        .trim()
+        .replaceAll(RegExp(r'[^a-zA-Z0-9_.-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
 
-    return 'curriculo_$safeUserId$extension';
+    if (safeFileName.toLowerCase().endsWith('.pdf')) {
+      return safeFileName;
+    }
+
+    return 'arquivo_$safeUserId.pdf';
+  }
+
+  static Uri _resolveDownloadUri(Uri uri) {
+    final apiBaseUri = Uri.parse(ChatRepositoryImpl.apiBaseUrl);
+    final isUserFile = uri.pathSegments.length >= 3 &&
+        uri.pathSegments[0] == 'users' &&
+        uri.pathSegments[1] == 'me' &&
+        uri.pathSegments[2] == 'files';
+
+    if (!isUserFile) {
+      return uri;
+    }
+
+    return apiBaseUri.replace(
+      path: uri.path,
+      query: uri.query,
+      fragment: uri.fragment,
+    );
   }
 }

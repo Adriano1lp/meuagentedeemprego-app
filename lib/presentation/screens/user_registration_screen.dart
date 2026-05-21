@@ -27,19 +27,28 @@ class _UserRegistrationScreenState
 
   PlatformFile? _selectedFile;
   bool _isSubmitting = false;
+  String? _statusMessage;
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['txt', 'pdf'],
-      withData: true,
-    );
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['txt', 'pdf'],
+        withData: true,
+      );
 
-    if (result == null || result.files.isEmpty) return;
+      if (result == null || result.files.isEmpty) {
+        _showMessage('Nenhum arquivo selecionado.');
+        return;
+      }
 
-    setState(() {
-      _selectedFile = result.files.single;
-    });
+      setState(() {
+        _selectedFile = result.files.single;
+        _statusMessage = 'Arquivo selecionado. Pronto para enviar.';
+      });
+    } catch (e) {
+      _showMessage('Nao foi possivel abrir o seletor de arquivos: $e');
+    }
   }
 
   Future<void> _submit() async {
@@ -47,22 +56,32 @@ class _UserRegistrationScreenState
     final session = ref.read(sessionProvider);
 
     if (session.authToken == null || session.authToken!.trim().isEmpty) {
+      setState(() {
+        _statusMessage = 'Sessao expirada. Entre novamente.';
+      });
       _showMessage('Sessao expirada. Entre novamente.');
       return;
     }
 
     if (file == null) {
+      setState(() {
+        _statusMessage = 'Selecione um arquivo .txt ou .pdf antes de enviar.';
+      });
       _showMessage('Selecione um arquivo .txt ou .pdf.');
       return;
     }
 
     if (file.path == null && file.bytes == null) {
+      setState(() {
+        _statusMessage = 'O app nao conseguiu ler o arquivo selecionado.';
+      });
       _showMessage('Nao foi possivel ler o arquivo selecionado.');
       return;
     }
 
     setState(() {
       _isSubmitting = true;
+      _statusMessage = 'Enviando curriculo para a API...';
     });
 
     try {
@@ -72,6 +91,12 @@ class _UserRegistrationScreenState
         filePath: file.path,
         fileBytes: file.bytes,
       );
+
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = 'Curriculo enviado. Processando embeddings...';
+      });
+
       await _repository.rebuildEmbeddings(authToken: session.authToken!);
 
       await ref.read(sessionProvider.notifier).updateHasCv(true);
@@ -93,6 +118,9 @@ class _UserRegistrationScreenState
       );
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _statusMessage = 'Falha no envio do curriculo.';
+      });
       _showMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
@@ -206,6 +234,20 @@ class _UserRegistrationScreenState
                       ),
                     ),
                     const SizedBox(height: 20),
+                    if (_statusMessage != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: _chipBox(_paper),
+                        child: Text(
+                          _statusMessage!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: _ink,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(

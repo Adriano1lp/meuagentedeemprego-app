@@ -18,26 +18,33 @@ void main() {
     if (!Hive.isBoxOpen('chat_history')) {
       await Hive.openBox<MessageModel>('chat_history');
     }
+    if (!Hive.isBoxOpen('app_session')) {
+      await Hive.openBox<String>('app_session');
+    }
   });
 
   tearDown(() async {
     await Hive.box<MessageModel>('chat_history').clear();
+    await Hive.box<String>('app_session').clear();
   });
 
   tearDownAll(() async {
     await Hive.box<MessageModel>('chat_history').close();
+    await Hive.box<String>('app_session').close();
   });
 
-  testWidgets('renderiza a tela inicial do chat', (WidgetTester tester) async {
+  testWidgets('renderiza a tela inicial de autenticacao', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       const ProviderScope(
         child: MyApp(),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.text('Agente de Emprego'), findsOneWidget);
-    expect(find.textContaining('Seu copiloto para candidaturas'), findsOneWidget);
-    expect(find.textContaining('Digite ou cole'), findsOneWidget);
+    expect(find.text('Entrar na conta'), findsOneWidget);
+    expect(find.text('Entrar'), findsWidgets);
+    expect(find.text('Criar conta'), findsOneWidget);
   });
 }

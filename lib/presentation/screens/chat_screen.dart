@@ -184,7 +184,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-            'Modelos para testar',
+            'Modelo para testar',
             style: theme.textTheme.titleMedium?.copyWith(letterSpacing: -0.2),
           ),
           const SizedBox(height: 6),
@@ -203,26 +203,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             chipLabel: 'POST',
             onTap: () => _fillSuggestion(
               'Analise a vaga abaixo. Quero um resumo de aderencia, pontos fortes, lacunas criticas e recomendacoes praticas:\n\n[TEXTO DA VAGA AQUI]',
-            ),
-          ),
-          _SuggestionCard(
-            icon: Icons.tune_outlined,
-            title: 'Melhorar curriculo',
-            subtitle:
-                'Envia a vaga para a API e pede enfase na adaptacao do curriculo para o PDF gerado.',
-            chipLabel: 'PDF',
-            onTap: () => _fillSuggestion(
-              'Use a vaga abaixo para adaptar meu curriculo no PDF final e explique os ajustes mais importantes:\n\n[TEXTO DA VAGA AQUI]',
-            ),
-          ),
-          _SuggestionCard(
-            icon: Icons.markunread_outlined,
-            title: 'Teste completo',
-            subtitle:
-                'Modelo mais completo para validar o fluxo do endpoint com uma descricao grande de vaga.',
-            chipLabel: 'Flow',
-            onTap: () => _fillSuggestion(
-              'Analise esta vaga completa e gere uma resposta final objetiva para o candidato com match, lacunas e proximos passos:\n\n[TEXTO DA VAGA AQUI]',
             ),
           ),
         ],
@@ -461,14 +441,7 @@ class _SuggestionCard extends StatelessWidget {
   }
 
   Color _cardColorForTitle(String value) {
-    switch (value) {
-      case 'Analisar vaga':
-        return const Color(0xFFB6F36A);
-      case 'Melhorar curriculo':
-        return const Color(0xFFFFE16A);
-      default:
-        return const Color(0xFF87D2FF);
-    }
+    return const Color(0xFFB6F36A);
   }
 }
 

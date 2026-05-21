@@ -7,7 +7,7 @@ import '../models/message_model.dart';
 class ChatRepositoryImpl {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8000',
+    defaultValue: 'http://127.0.0.1:8000',
   );
 
   final Box<MessageModel> _box;
