@@ -4,6 +4,7 @@ import 'package:hive/hive.dart';
 import '../../data/models/message_model.dart';
 import '../../data/repositories/chat_repository_impl.dart';
 import '../../domain/entities/chat_message.dart';
+import '../validators/job_description_validator.dart';
 import 'session_provider.dart';
 
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
@@ -49,11 +50,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
   ChatNotifier(this._repository)
     : super(ChatState(messages: _repository.getHistory()));
 
-  Future<void> sendMessage(String text) async {
-    if (state.isLoading) return;
+  Future<bool> sendMessage(String text) async {
+    if (state.isLoading) return false;
 
     final trimmedText = text.trim();
-    if (trimmedText.isEmpty) return;
+    final validation = JobDescriptionValidator.validate(trimmedText);
+    if (!validation.isValid) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: validation.message,
+      );
+      return false;
+    }
 
     final userMessage = ChatMessage(
       id: 'u-${DateTime.now().microsecondsSinceEpoch}',
@@ -83,7 +91,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
         isLoading: false,
         errorMessage: e.toString().replaceFirst('Exception: ', ''),
       );
+      return true;
     }
+
+    return true;
   }
 
   void clearError() {

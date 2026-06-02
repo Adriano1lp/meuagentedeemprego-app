@@ -66,10 +66,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _handleSend() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    _messageController.clear();
-    await ref.read(chatProvider.notifier).sendMessage(text);
+    final wasAccepted = await ref.read(chatProvider.notifier).sendMessage(text);
+    if (wasAccepted) {
+      _messageController.clear();
+    }
   }
 
   @override
