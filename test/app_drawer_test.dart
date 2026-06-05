@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:agente_emprego/data/models/message_model.dart';
-import 'package:agente_emprego/presentation/screens/chat_screen.dart';
-import 'package:agente_emprego/presentation/screens/home_screen.dart';
-import 'package:agente_emprego/presentation/widgets/app_drawer.dart';
+import 'package:meu_agente_de_emprego/data/models/message_model.dart';
+import 'package:meu_agente_de_emprego/presentation/screens/chat_screen.dart';
+import 'package:meu_agente_de_emprego/presentation/screens/home_screen.dart';
+import 'package:meu_agente_de_emprego/presentation/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

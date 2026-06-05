@@ -1,14 +1,16 @@
 import 'dart:io';
 
-import 'package:agente_emprego/data/models/message_model.dart';
-import 'package:agente_emprego/main.dart';
+import 'package:meu_agente_de_emprego/data/models/message_model.dart';
+import 'package:meu_agente_de_emprego/main.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
 void main() {
   setUpAll(() async {
-    final tempDir = await Directory.systemTemp.createTemp('agente_emprego_test');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'meu_agente_de_emprego_test',
+    );
     Hive.init(tempDir.path);
 
     if (!Hive.isAdapterRegistered(0)) {

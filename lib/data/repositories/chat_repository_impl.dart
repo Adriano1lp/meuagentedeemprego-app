@@ -7,7 +7,7 @@ import '../models/message_model.dart';
 class ChatRepositoryImpl {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000',
+    defaultValue: 'https://meu-agente-de-emprego.onrender.com',
   );
 
   final Box<MessageModel> _box;
@@ -67,8 +67,7 @@ class ChatRepositoryImpl {
       } else if (e.type == DioExceptionType.connectionError) {
         errorMessage =
             'Nao foi possivel alcancar a API em $apiBaseUrl. '
-            'No celular, localhost aponta para o proprio aparelho. '
-            'Use o IP do computador na rede local.';
+            'Verifique sua conexao ou informe outra URL com API_BASE_URL.';
       } else if (_extractApiDetail(e) case final detail?) {
         errorMessage = detail;
       } else if (e.response?.statusCode == 404) {

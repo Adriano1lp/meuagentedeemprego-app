@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "139852949196",
+    "project_id": "meu-agente-de-emprego",
+    "storage_bucket": "meu-agente-de-emprego.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:139852949196:android:3bcf1f88f746ad732a0469",
+        "android_client_info": {
+          "package_name": "br.com.meuagentedeemprego.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8T1nLFu1stoFTGklFX9QawfJX4lUFqaQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

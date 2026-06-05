@@ -1,7 +1,7 @@
-import 'package:agente_emprego/data/repositories/chat_repository_impl.dart';
-import 'package:agente_emprego/domain/entities/chat_message.dart';
-import 'package:agente_emprego/presentation/providers/chat_provider.dart';
-import 'package:agente_emprego/presentation/validators/job_description_validator.dart';
+import 'package:meu_agente_de_emprego/data/repositories/chat_repository_impl.dart';
+import 'package:meu_agente_de_emprego/domain/entities/chat_message.dart';
+import 'package:meu_agente_de_emprego/presentation/providers/chat_provider.dart';
+import 'package:meu_agente_de_emprego/presentation/validators/job_description_validator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
