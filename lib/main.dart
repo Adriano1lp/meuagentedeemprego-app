@@ -6,7 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/models/message_model.dart';
 import 'presentation/screens/auth_screen.dart';
-import 'presentation/screens/chat_screen.dart';
+import 'presentation/screens/home_screen.dart';
 import 'presentation/providers/session_provider.dart';
 import 'presentation/screens/user_registration_screen.dart';
 
@@ -267,6 +267,6 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
       return const AuthScreen();
     }
 
-    return session.hasCv ? const ChatScreen() : const UserRegistrationScreen();
+    return session.hasCv ? const HomeScreen() : const UserRegistrationScreen();
   }
 }

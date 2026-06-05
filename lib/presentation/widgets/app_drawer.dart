@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/repositories/chat_repository_impl.dart';
 import '../providers/session_provider.dart';
 import '../screens/auth_screen.dart';
 import '../screens/chat_screen.dart';
 import '../screens/cover_letter_screen.dart';
 import '../screens/history_screen.dart';
+import '../screens/home_screen.dart';
 import '../screens/job_search_screen.dart';
 import '../screens/user_registration_screen.dart';
 
@@ -101,146 +101,134 @@ class AppDrawer extends ConsumerWidget {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 18, 14, 0),
-              child: _DrawerTile(
-                color: _green,
-                icon: Icons.home_rounded,
-                title: 'Home',
-                subtitle: 'Voltar para a tela principal',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const ChatScreen()),
-                    (route) => false,
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-              child: _DrawerTile(
-                color: const Color(0xFF87D2FF),
-                icon: Icons.history,
-                title: 'Historico',
-                subtitle: 'Mensagens salvas localmente',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const HistoryScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-              child: _DrawerTile(
-                color: const Color(0xFF87D2FF),
-                icon: Icons.mark_email_read_outlined,
-                title: 'Carta',
-                subtitle: 'Gerar apresentacao em PDF',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CoverLetterScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-              child: _DrawerTile(
-                color: const Color(0xFFFFC7DE),
-                icon: Icons.travel_explore_rounded,
-                title: 'Buscar vagas',
-                subtitle: 'Pesquisar oportunidades e abrir links',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const JobSearchScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-              child: _DrawerTile(
-                color: _yellow,
-                icon: Icons.badge_outlined,
-                title: 'Curriculo',
-                subtitle: 'Atualizar upload e embeddings',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const UserRegistrationScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _yellow,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: _ink, width: 3),
-                  boxShadow: const [
-                    BoxShadow(color: _ink, offset: Offset(6, 6)),
-                  ],
-                ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(14, 18, 14, 18),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'API atual',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(fontSize: 16),
+                    _DrawerTile(
+                      color: _green,
+                      icon: Icons.home_rounded,
+                      title: 'Home',
+                      subtitle: 'Voltar para a tela principal',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      },
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      ChatRepositoryImpl.apiBaseUrl,
-                      style: Theme.of(context).textTheme.bodySmall,
+                    const SizedBox(height: 10),
+                    _DrawerTile(
+                      color: _yellow,
+                      icon: Icons.analytics_outlined,
+                      title: 'Analise de vaga',
+                      subtitle: 'Calcular aderencia, gaps e curriculo',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ChatScreen(),
+                          ),
+                        );
+                      },
                     ),
-                    if (userId != null) ...[
-                      const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          await ref.read(sessionProvider.notifier).clear();
-                          if (!context.mounted) return;
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (context) => const AuthScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: _paper,
-                        ),
-                        child: const Text('Sair'),
-                      ),
-                    ],
+                    const SizedBox(height: 10),
+                    _DrawerTile(
+                      color: const Color(0xFF87D2FF),
+                      icon: Icons.history,
+                      title: 'Historico',
+                      subtitle: 'Mensagens salvas localmente',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HistoryScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _DrawerTile(
+                      color: const Color(0xFF87D2FF),
+                      icon: Icons.mark_email_read_outlined,
+                      title: 'Carta',
+                      subtitle: 'Gerar apresentacao em PDF',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CoverLetterScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _DrawerTile(
+                      color: const Color(0xFFFFC7DE),
+                      icon: Icons.travel_explore_rounded,
+                      title: 'Buscar vagas',
+                      subtitle: 'Pesquisar oportunidades e abrir links',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const JobSearchScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _DrawerTile(
+                      color: _yellow,
+                      icon: Icons.badge_outlined,
+                      title: 'Curriculo',
+                      subtitle: 'Atualizar upload e embeddings',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const UserRegistrationScreen(),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
             ),
+            if (userId != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await ref.read(sessionProvider.notifier).clear();
+                    if (!context.mounted) return;
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (context) => const AuthScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: _paper,
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Sair'),
+                ),
+              ),
           ],
         ),
       ),

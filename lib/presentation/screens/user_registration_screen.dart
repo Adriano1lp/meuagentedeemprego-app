@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/chat_repository_impl.dart';
 import '../../data/repositories/user_repository_impl.dart';
 import '../providers/session_provider.dart';
-import 'chat_screen.dart';
+import 'home_screen.dart';
 
 class UserRegistrationScreen extends ConsumerStatefulWidget {
   const UserRegistrationScreen({super.key});
@@ -114,7 +114,7 @@ class _UserRegistrationScreenState
         );
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const ChatScreen()),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     } catch (e) {
       if (!mounted) return;

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/auth_repository_impl.dart';
 import '../providers/session_provider.dart';
-import 'chat_screen.dart';
+import 'home_screen.dart';
 import 'user_registration_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -98,7 +98,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       if (!mounted) return;
 
       final nextScreen = (status.hasCv && status.hasEmbeddings)
-          ? const ChatScreen()
+          ? const HomeScreen()
           : const UserRegistrationScreen();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => nextScreen),
