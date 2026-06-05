@@ -5,6 +5,7 @@ import '../providers/session_provider.dart';
 import '../screens/auth_screen.dart';
 import '../screens/chat_screen.dart';
 import '../screens/cover_letter_screen.dart';
+import '../screens/development_plan_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/job_search_screen.dart';
@@ -149,6 +150,22 @@ class AppDrawer extends ConsumerWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) => const HistoryScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _DrawerTile(
+                      color: const Color(0xFF87D2FF),
+                      icon: Icons.checklist_rtl_rounded,
+                      title: 'PDI',
+                      subtitle: 'Plano 70/20/10 e progresso',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const DevelopmentPlanScreen(),
                           ),
                         );
                       },

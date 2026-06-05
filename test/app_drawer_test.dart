@@ -1,7 +1,11 @@
 import 'dart:io';
 
 import 'package:meu_agente_de_emprego/data/models/message_model.dart';
+import 'package:meu_agente_de_emprego/data/models/development_plan_model.dart';
+import 'package:meu_agente_de_emprego/data/repositories/development_plan_repository_impl.dart';
+import 'package:meu_agente_de_emprego/presentation/providers/development_plan_provider.dart';
 import 'package:meu_agente_de_emprego/presentation/screens/chat_screen.dart';
+import 'package:meu_agente_de_emprego/presentation/screens/development_plan_screen.dart';
 import 'package:meu_agente_de_emprego/presentation/screens/home_screen.dart';
 import 'package:meu_agente_de_emprego/presentation/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
@@ -56,6 +60,7 @@ void main() {
     expect(find.text('API atual'), findsNothing);
     expect(find.text('http://127.0.0.1:8000'), findsNothing);
     expect(find.text('Analise de vaga'), findsOneWidget);
+    expect(find.text('PDI'), findsOneWidget);
     expect(find.text('Sair'), findsOneWidget);
   });
 
@@ -80,4 +85,57 @@ void main() {
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Analise da Vaga'), findsNothing);
   });
+
+  testWidgets('PDI no drawer abre DevelopmentPlanScreen', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          developmentPlanRepositoryProvider.overrideWithValue(
+            _EmptyDevelopmentPlanRepository(),
+          ),
+        ],
+        child: MaterialApp(
+          home: AppDrawer(),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('PDI'));
+    await tester.pump();
+
+    expect(find.byType(DevelopmentPlanScreen), findsOneWidget);
+  });
+}
+
+class _EmptyDevelopmentPlanRepository implements DevelopmentPlanRepository {
+  @override
+  Future<DevelopmentPlanModel?> getActivePlan({
+    required String authToken,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<DevelopmentPlanModel> generatePlan({
+    required String authToken,
+    int limit = 10,
+    bool replaceActive = false,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<DevelopmentPlanModel> updateItemStatus({
+    required String authToken,
+    required String pdiId,
+    required String itemId,
+    required String status,
+  }) async {
+    throw UnimplementedError();
+  }
 }
