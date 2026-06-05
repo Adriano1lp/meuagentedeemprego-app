@@ -1,4 +1,4 @@
-package com.example.agente_emprego
+package br.com.meuagentedeemprego.app
 
 import io.flutter.embedding.android.FlutterActivity
 
