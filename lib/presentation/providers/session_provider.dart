@@ -15,6 +15,7 @@ class SessionState {
   final String? email;
   final String? displayName;
   final bool hasCv;
+  final bool termsAccepted;
 
   const SessionState({
     this.authToken,
@@ -22,6 +23,7 @@ class SessionState {
     this.email,
     this.displayName,
     this.hasCv = false,
+    this.termsAccepted = false,
   });
 
   bool get hasSession => authToken != null && authToken!.trim().isNotEmpty;
@@ -32,6 +34,7 @@ class SessionState {
     String? email,
     String? displayName,
     bool? hasCv,
+    bool? termsAccepted,
     bool clear = false,
   }) {
     if (clear) {
@@ -44,6 +47,7 @@ class SessionState {
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
       hasCv: hasCv ?? this.hasCv,
+      termsAccepted: termsAccepted ?? this.termsAccepted,
     );
   }
 }
@@ -57,6 +61,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
           email: _box.get(_emailKey),
           displayName: _box.get(_displayNameKey),
           hasCv: _box.get(_hasCvKey) == 'true',
+          termsAccepted: _box.get(_termsAcceptedKey) == 'true',
         ),
       );
 
@@ -65,6 +70,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
   static const String _emailKey = 'email';
   static const String _displayNameKey = 'display_name';
   static const String _hasCvKey = 'has_cv';
+  static const String _termsAcceptedKey = 'terms_accepted';
 
   final Box<String> _box;
 
@@ -74,6 +80,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
     required String email,
     required String displayName,
     required bool hasCv,
+    required bool termsAccepted,
   }) async {
     final normalizedUserId = normalizeUserId(userId);
     if (state.userId != normalizedUserId) {
@@ -85,6 +92,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
     await _box.put(_emailKey, email.trim().toLowerCase());
     await _box.put(_displayNameKey, displayName.trim());
     await _box.put(_hasCvKey, hasCv.toString());
+    await _box.put(_termsAcceptedKey, termsAccepted.toString());
 
     state = SessionState(
       authToken: authToken,
@@ -92,12 +100,18 @@ class SessionNotifier extends StateNotifier<SessionState> {
       email: email.trim().toLowerCase(),
       displayName: displayName.trim(),
       hasCv: hasCv,
+      termsAccepted: termsAccepted,
     );
   }
 
   Future<void> updateHasCv(bool hasCv) async {
     await _box.put(_hasCvKey, hasCv.toString());
     state = state.copyWith(hasCv: hasCv);
+  }
+
+  Future<void> updateTermsAccepted(bool termsAccepted) async {
+    await _box.put(_termsAcceptedKey, termsAccepted.toString());
+    state = state.copyWith(termsAccepted: termsAccepted);
   }
 
   Future<void> clear() async {
@@ -107,6 +121,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
     await _box.delete(_emailKey);
     await _box.delete(_displayNameKey);
     await _box.delete(_hasCvKey);
+    await _box.delete(_termsAcceptedKey);
     state = const SessionState();
   }
 

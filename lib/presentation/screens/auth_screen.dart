@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/auth_repository_impl.dart';
+import '../../domain/terms/usage_terms.dart';
 import '../providers/session_provider.dart';
 import 'home_screen.dart';
+import 'terms_acceptance_screen.dart';
 import 'user_registration_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -30,6 +32,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       TextEditingController();
 
   bool _isSubmitting = false;
+  bool _acceptedTerms = false;
 
   @override
   void dispose() {
@@ -50,12 +53,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       _showMessage('Preencha nome, email e senha.');
       return;
     }
+    if (!_acceptedTerms) {
+      _showMessage('Leia e aceite o termo de uso para criar sua conta.');
+      return;
+    }
 
     await _authenticate(
       action: () => _repository.register(
         displayName: displayName,
         email: email,
         password: password,
+        termsAccepted: _acceptedTerms,
       ),
     );
   }
@@ -86,6 +94,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
     try {
       final sessionData = await action();
+      if (!sessionData.termsAccepted) {
+        await ref.read(sessionProvider.notifier).saveSession(
+          authToken: sessionData.authToken,
+          userId: sessionData.userId,
+          email: sessionData.email,
+          displayName: sessionData.displayName,
+          hasCv: false,
+          termsAccepted: false,
+        );
+
+        if (!mounted) return;
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const TermsAcceptanceScreen()),
+        );
+        return;
+      }
+
       final status = await _repository.getUserStatus(sessionData.authToken);
       await ref.read(sessionProvider.notifier).saveSession(
         authToken: sessionData.authToken,
@@ -93,6 +119,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         email: sessionData.email,
         displayName: sessionData.displayName,
         hasCv: status.hasCv && status.hasEmbeddings,
+        termsAccepted: sessionData.termsAccepted,
       );
 
       if (!mounted) return;
@@ -240,6 +267,29 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 decoration: const InputDecoration(
                   hintText: 'Senha com pelo menos 8 caracteres',
                 ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: _chipBox(_paper),
+                child: Text(
+                  usageTermsText,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                value: _acceptedTerms,
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _acceptedTerms = value == true;
+                        });
+                      },
+                title: const Text('Li e concordo com o termo de uso'),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
               ),
               const SizedBox(height: 20),
               SizedBox(

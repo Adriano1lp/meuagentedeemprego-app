@@ -7,12 +7,14 @@ class AuthSessionData {
   final String userId;
   final String email;
   final String displayName;
+  final bool termsAccepted;
 
   const AuthSessionData({
     required this.authToken,
     required this.userId,
     required this.email,
     required this.displayName,
+    required this.termsAccepted,
   });
 }
 
@@ -42,6 +44,7 @@ class AuthRepositoryImpl {
     required String displayName,
     required String email,
     required String password,
+    required bool termsAccepted,
   }) async {
     final response = await _post(
       '/auth/register',
@@ -49,6 +52,7 @@ class AuthRepositoryImpl {
         'display_name': displayName.trim(),
         'email': email.trim(),
         'password': password,
+        'terms_accepted': termsAccepted,
       },
     );
     return _parseAuthSession(response.data);
@@ -84,6 +88,7 @@ class AuthRepositoryImpl {
         userId: data['user_id'] as String? ?? '',
         email: data['email'] as String? ?? '',
         displayName: data['display_name'] as String? ?? '',
+        termsAccepted: data['terms_accepted'] == true,
       );
     } on DioException catch (e) {
       throw Exception(_extractErrorMessage(e));
@@ -104,6 +109,30 @@ class AuthRepositoryImpl {
       return UserStatusData(
         hasCv: data['has_cv'] == true,
         hasEmbeddings: data['has_embeddings'] == true,
+      );
+    } on DioException catch (e) {
+      throw Exception(_extractErrorMessage(e));
+    }
+  }
+
+  Future<AuthSessionData> acceptTerms(String authToken) async {
+    try {
+      final response = await _dio.post(
+        '/users/me/terms/accept',
+        data: {'accepted': true},
+        options: Options(headers: _bearerHeaders(authToken)),
+      );
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw Exception('Resposta da API em formato invalido');
+      }
+
+      return AuthSessionData(
+        authToken: authToken,
+        userId: data['user_id'] as String? ?? '',
+        email: data['email'] as String? ?? '',
+        displayName: data['display_name'] as String? ?? '',
+        termsAccepted: data['terms_accepted'] == true,
       );
     } on DioException catch (e) {
       throw Exception(_extractErrorMessage(e));
@@ -141,6 +170,7 @@ class AuthRepositoryImpl {
       userId: user['user_id'] as String? ?? '',
       email: user['email'] as String? ?? '',
       displayName: user['display_name'] as String? ?? '',
+      termsAccepted: user['terms_accepted'] == true,
     );
   }
 

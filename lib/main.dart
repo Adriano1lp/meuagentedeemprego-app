@@ -8,6 +8,7 @@ import 'data/models/message_model.dart';
 import 'presentation/screens/auth_screen.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/providers/session_provider.dart';
+import 'presentation/screens/terms_acceptance_screen.dart';
 import 'presentation/screens/user_registration_screen.dart';
 
 Future<void> main() async {
@@ -232,6 +233,18 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
     try {
       final authToken = session.authToken!;
       final currentUser = await _repository.getCurrentUser(authToken);
+      if (!currentUser.termsAccepted) {
+        await ref.read(sessionProvider.notifier).saveSession(
+          authToken: authToken,
+          userId: currentUser.userId,
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+          hasCv: false,
+          termsAccepted: false,
+        );
+        return;
+      }
+
       final status = await _repository.getUserStatus(authToken);
       await ref.read(sessionProvider.notifier).saveSession(
         authToken: authToken,
@@ -239,6 +252,7 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
         email: currentUser.email,
         displayName: currentUser.displayName,
         hasCv: status.hasCv && status.hasEmbeddings,
+        termsAccepted: currentUser.termsAccepted,
       );
     } catch (_) {
       await ref.read(sessionProvider.notifier).clear();
@@ -265,6 +279,10 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
 
     if (!session.hasSession) {
       return const AuthScreen();
+    }
+
+    if (!session.termsAccepted) {
+      return const TermsAcceptanceScreen();
     }
 
     return session.hasCv ? const HomeScreen() : const UserRegistrationScreen();
