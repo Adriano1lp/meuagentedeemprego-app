@@ -134,4 +134,32 @@ class UserRepositoryImpl {
       throw Exception('Erro inesperado: $e');
     }
   }
+
+  Future<void> saveManualProfile({
+    required String authToken,
+    required Map<String, dynamic> profile,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/users/me/manual-profile',
+        data: profile,
+        options: _userOptions(authToken: authToken),
+      );
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('Erro ao salvar perfil: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionTimeout) {
+        throw Exception('Tempo de conexao esgotado');
+      }
+      if (e.type == DioExceptionType.connectionError) {
+        throw Exception('Nao foi possivel alcancar a API. Verifique sua conexao.');
+      }
+      final detail = e.response?.data;
+      if (detail is Map<String, dynamic> && detail['detail'] is String) {
+        throw Exception(detail['detail'] as String);
+      }
+      throw Exception('Falha ao salvar e processar o perfil manual');
+    }
+  }
 }

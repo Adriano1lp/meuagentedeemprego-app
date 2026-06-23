@@ -216,10 +216,11 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
   @override
   void initState() {
     super.initState();
-    _bootstrapSession();
+    Future<void>.microtask(_bootstrapSession);
   }
 
   Future<void> _bootstrapSession() async {
+    await ref.read(sessionProvider.notifier).restoreSecureSession();
     final session = ref.read(sessionProvider);
     if (!session.hasSession) {
       if (mounted) {

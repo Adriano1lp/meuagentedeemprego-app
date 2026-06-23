@@ -6,6 +6,7 @@ import '../../data/repositories/chat_repository_impl.dart';
 import '../../data/repositories/user_repository_impl.dart';
 import '../providers/session_provider.dart';
 import 'home_screen.dart';
+import 'manual_profile_screen.dart';
 
 class UserRegistrationScreen extends ConsumerStatefulWidget {
   const UserRegistrationScreen({super.key});
@@ -269,6 +270,22 @@ class _UserRegistrationScreenState
                               ? 'Enviando e processando...'
                               : 'Enviar curriculo',
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isSubmitting
+                            ? null
+                            : () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const ManualProfileScreen(),
+                                  ),
+                                ),
+                        icon: const Icon(Icons.edit_note),
+                        label: const Text('Prefiro preencher manualmente'),
+                        style: OutlinedButton.styleFrom(backgroundColor: _blue),
                       ),
                     ),
                   ],

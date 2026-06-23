@@ -41,6 +41,8 @@ dependencies:
   google_fonts: ^6.2.1
   file_picker: ^8.1.2
   open_filex: ^4.5.0
+  local_auth: ^2.3.0
+  flutter_secure_storage: ^9.2.4
   web: ^1.1.1
 
 
