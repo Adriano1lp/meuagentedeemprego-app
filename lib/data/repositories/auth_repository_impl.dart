@@ -18,14 +18,18 @@ class AuthSessionData {
   });
 }
 
+class PasswordResetRequestData {
+  final String message;
+  final String? resetToken;
+
+  const PasswordResetRequestData({required this.message, this.resetToken});
+}
+
 class UserStatusData {
   final bool hasCv;
   final bool hasEmbeddings;
 
-  const UserStatusData({
-    required this.hasCv,
-    required this.hasEmbeddings,
-  });
+  const UserStatusData({required this.hasCv, required this.hasEmbeddings});
 }
 
 class AuthRepositoryImpl {
@@ -64,12 +68,39 @@ class AuthRepositoryImpl {
   }) async {
     final response = await _post(
       '/auth/login',
-      data: {
-        'email': email.trim(),
-        'password': password,
-      },
+      data: {'email': email.trim(), 'password': password},
     );
     return _parseAuthSession(response.data);
+  }
+
+  Future<PasswordResetRequestData> requestPasswordReset({
+    required String email,
+  }) async {
+    final response = await _post(
+      '/auth/password-reset/request',
+      data: {'email': email.trim()},
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Resposta da API em formato invalido');
+    }
+
+    return PasswordResetRequestData(
+      message:
+          data['message'] as String? ??
+          'Se o email estiver cadastrado, enviaremos instrucoes para recuperar a senha.',
+      resetToken: data['reset_token'] as String?,
+    );
+  }
+
+  Future<void> confirmPasswordReset({
+    required String token,
+    required String newPassword,
+  }) async {
+    await _post(
+      '/auth/password-reset/confirm',
+      data: {'token': token.trim(), 'new_password': newPassword},
+    );
   }
 
   Future<AuthSessionData> getCurrentUser(String authToken) async {
@@ -175,9 +206,7 @@ class AuthRepositoryImpl {
   }
 
   Map<String, String> _bearerHeaders(String authToken) {
-    return {
-      'Authorization': 'Bearer $authToken',
-    };
+    return {'Authorization': 'Bearer $authToken'};
   }
 
   String _extractErrorMessage(DioException error) {

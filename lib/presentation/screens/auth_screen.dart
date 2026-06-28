@@ -11,7 +11,10 @@ import 'terms_acceptance_screen.dart';
 import 'user_registration_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
-  const AuthScreen({super.key});
+  AuthScreen({super.key, AuthRepositoryImpl? repository})
+    : repository = repository ?? AuthRepositoryImpl();
+
+  final AuthRepositoryImpl repository;
 
   @override
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
@@ -23,14 +26,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   static const Color _yellow = Color(0xFFFFE16A);
   static const Color _blue = Color(0xFF87D2FF);
   static const Color _green = Color(0xFFB6F36A);
-
-  final AuthRepositoryImpl _repository = AuthRepositoryImpl();
   final TextEditingController _registerNameController = TextEditingController();
-  final TextEditingController _registerEmailController = TextEditingController();
+  final TextEditingController _registerEmailController =
+      TextEditingController();
   final TextEditingController _registerPasswordController =
       TextEditingController();
   final TextEditingController _loginEmailController = TextEditingController();
   final TextEditingController _loginPasswordController =
+      TextEditingController();
+  final TextEditingController _resetEmailController = TextEditingController();
+  final TextEditingController _resetTokenController = TextEditingController();
+  final TextEditingController _resetPasswordController =
       TextEditingController();
 
   bool _isSubmitting = false;
@@ -54,6 +60,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     _registerPasswordController.dispose();
     _loginEmailController.dispose();
     _loginPasswordController.dispose();
+    _resetEmailController.dispose();
+    _resetTokenController.dispose();
+    _resetPasswordController.dispose();
     super.dispose();
   }
 
@@ -72,7 +81,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     }
 
     await _authenticate(
-      action: () => _repository.register(
+      action: () => widget.repository.register(
         displayName: displayName,
         email: email,
         password: password,
@@ -92,12 +101,137 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     }
 
     await _authenticate(
-      action: () => _repository.login(
-        email: email,
-        password: password,
-      ),
+      action: () => widget.repository.login(email: email, password: password),
       offerBiometrics: true,
     );
+  }
+
+  Future<void> _openPasswordResetRequest() async {
+    _resetEmailController.text = _loginEmailController.text.trim();
+    final result = await showDialog<PasswordResetRequestData>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Recuperar senha'),
+          content: TextField(
+            controller: _resetEmailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(hintText: 'Email cadastrado'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                final email = _resetEmailController.text.trim();
+                if (!_isValidEmail(email)) {
+                  _showMessage('Informe um email valido.');
+                  return;
+                }
+
+                try {
+                  final response = await widget.repository.requestPasswordReset(
+                    email: email,
+                  );
+                  if (!dialogContext.mounted) return;
+                  Navigator.of(dialogContext).pop(response);
+                } catch (e) {
+                  if (!mounted) return;
+                  _showMessage(e.toString().replaceFirst('Exception: ', ''));
+                }
+              },
+              icon: const Icon(Icons.mail_outline_rounded),
+              label: const Text('Enviar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null || !mounted) return;
+    _showMessage(result.message);
+    if (result.resetToken != null && result.resetToken!.trim().isNotEmpty) {
+      _resetTokenController.text = result.resetToken!;
+    }
+    await _openPasswordResetConfirm();
+  }
+
+  Future<void> _openPasswordResetConfirm() async {
+    _resetPasswordController.clear();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Definir nova senha'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _resetTokenController,
+                decoration: const InputDecoration(
+                  hintText: 'Codigo de recuperacao',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _resetPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  hintText: 'Nova senha com pelo menos 8 caracteres',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                final token = _resetTokenController.text.trim();
+                final password = _resetPasswordController.text;
+                if (token.isEmpty) {
+                  _showMessage('Informe o codigo de recuperacao.');
+                  return;
+                }
+                if (password.length < 8) {
+                  _showMessage('A senha deve ter pelo menos 8 caracteres.');
+                  return;
+                }
+
+                try {
+                  await widget.repository.confirmPasswordReset(
+                    token: token,
+                    newPassword: password,
+                  );
+                  if (!dialogContext.mounted) return;
+                  Navigator.of(dialogContext).pop();
+                  if (!mounted) return;
+                  _showMessage(
+                    'Senha redefinida com sucesso. Entre com a nova senha.',
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  _showMessage(e.toString().replaceFirst('Exception: ', ''));
+                }
+              },
+              icon: const Icon(Icons.lock_reset_rounded),
+              label: const Text('Redefinir'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  bool _isValidEmail(String email) {
+    final parts = email.split('@');
+    return parts.length == 2 &&
+        parts.last.contains('.') &&
+        parts.first.isNotEmpty;
   }
 
   Future<void> _authenticate({
@@ -111,14 +245,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     try {
       final sessionData = await action();
       if (!sessionData.termsAccepted) {
-        await ref.read(sessionProvider.notifier).saveSession(
-          authToken: sessionData.authToken,
-          userId: sessionData.userId,
-          email: sessionData.email,
-          displayName: sessionData.displayName,
-          hasCv: false,
-          termsAccepted: false,
-        );
+        await ref
+            .read(sessionProvider.notifier)
+            .saveSession(
+              authToken: sessionData.authToken,
+              userId: sessionData.userId,
+              email: sessionData.email,
+              displayName: sessionData.displayName,
+              hasCv: false,
+              termsAccepted: false,
+            );
 
         if (!mounted) return;
 
@@ -128,15 +264,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         return;
       }
 
-      final status = await _repository.getUserStatus(sessionData.authToken);
-      await ref.read(sessionProvider.notifier).saveSession(
-        authToken: sessionData.authToken,
-        userId: sessionData.userId,
-        email: sessionData.email,
-        displayName: sessionData.displayName,
-        hasCv: status.hasCv && status.hasEmbeddings,
-        termsAccepted: sessionData.termsAccepted,
+      final status = await widget.repository.getUserStatus(
+        sessionData.authToken,
       );
+      await ref
+          .read(sessionProvider.notifier)
+          .saveSession(
+            authToken: sessionData.authToken,
+            userId: sessionData.userId,
+            email: sessionData.email,
+            displayName: sessionData.displayName,
+            hasCv: status.hasCv && status.hasEmbeddings,
+            termsAccepted: sessionData.termsAccepted,
+          );
 
       if (!mounted) return;
 
@@ -148,9 +288,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       final nextScreen = (status.hasCv && status.hasEmbeddings)
           ? const HomeScreen()
           : const UserRegistrationScreen();
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => nextScreen),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
     } catch (e) {
       if (!mounted) return;
       _showMessage(e.toString().replaceFirst('Exception: ', ''));
@@ -269,19 +409,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         return;
       }
 
-      final currentUser = await _repository.getCurrentUser(authToken);
+      final currentUser = await widget.repository.getCurrentUser(authToken);
       final status = currentUser.termsAccepted
-          ? await _repository.getUserStatus(authToken)
+          ? await widget.repository.getUserStatus(authToken)
           : const UserStatusData(hasCv: false, hasEmbeddings: false);
 
-      await ref.read(sessionProvider.notifier).saveSession(
-        authToken: authToken,
-        userId: currentUser.userId,
-        email: currentUser.email,
-        displayName: currentUser.displayName,
-        hasCv: status.hasCv && status.hasEmbeddings,
-        termsAccepted: currentUser.termsAccepted,
-      );
+      await ref
+          .read(sessionProvider.notifier)
+          .saveSession(
+            authToken: authToken,
+            userId: currentUser.userId,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            hasCv: status.hasCv && status.hasEmbeddings,
+            termsAccepted: currentUser.termsAccepted,
+          );
 
       if (!mounted) return;
       final nextScreen = !currentUser.termsAccepted
@@ -290,9 +432,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           ? const HomeScreen()
           : const UserRegistrationScreen();
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => nextScreen),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
     } catch (e) {
       if (!mounted) return;
       _showMessage(e.toString().replaceFirst('Exception: ', ''));
@@ -322,10 +464,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           ),
         ),
         body: TabBarView(
-          children: [
-            _buildLoginTab(theme),
-            _buildRegisterTab(theme),
-          ],
+          children: [_buildLoginTab(theme), _buildRegisterTab(theme)],
         ),
       ),
     );
@@ -385,7 +524,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 obscureText: true,
                 decoration: const InputDecoration(hintText: 'Senha'),
               ),
-              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _isSubmitting ? null : _openPasswordResetRequest,
+                  icon: const Icon(Icons.lock_reset_rounded),
+                  label: const Text('Esqueci minha senha'),
+                ),
+              ),
+              const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
@@ -460,12 +607,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.all(14),
-                decoration: _chipBox(_paper),
-                child: Text(
-                  usageTermsText,
-                  style: theme.textTheme.bodySmall,
-                ),
+                key: const Key('register-usage-terms-notice'),
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: _noticeBox(_paper),
+                child: Text(usageTermsText, style: theme.textTheme.bodySmall),
               ),
               const SizedBox(height: 12),
               CheckboxListTile(
@@ -539,9 +685,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       color: color,
       borderRadius: BorderRadius.circular(24),
       border: Border.all(color: _ink, width: 3),
-      boxShadow: const [
-        BoxShadow(color: _ink, offset: Offset(8, 8)),
-      ],
+      boxShadow: const [BoxShadow(color: _ink, offset: Offset(8, 8))],
     );
   }
 
@@ -550,9 +694,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       color: color,
       borderRadius: BorderRadius.circular(999),
       border: Border.all(color: _ink, width: 2),
-      boxShadow: const [
-        BoxShadow(color: _ink, offset: Offset(3, 3)),
-      ],
+      boxShadow: const [BoxShadow(color: _ink, offset: Offset(3, 3))],
+    );
+  }
+
+  BoxDecoration _noticeBox(Color color) {
+    return BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: _ink, width: 2),
+      boxShadow: const [BoxShadow(color: _ink, offset: Offset(4, 4))],
     );
   }
 

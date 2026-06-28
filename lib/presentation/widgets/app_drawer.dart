@@ -239,7 +239,9 @@ class AppDrawer extends ConsumerWidget {
                           await ref
                               .read(biometricPreferenceStoreProvider)
                               .disableForUser(userId);
-                          await ref.read(sessionTokenStoreProvider).deleteToken();
+                          await ref
+                              .read(sessionTokenStoreProvider)
+                              .deleteToken();
                           await ref.read(sessionProvider.notifier).clear();
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context)
@@ -253,7 +255,7 @@ class AppDrawer extends ConsumerWidget {
                             );
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
-                              builder: (context) => const AuthScreen(),
+                              builder: (context) => AuthScreen(),
                             ),
                             (route) => false,
                           );
@@ -272,9 +274,7 @@ class AppDrawer extends ConsumerWidget {
                     await ref.read(sessionProvider.notifier).lock();
                     if (!context.mounted) return;
                     Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (context) => const AuthScreen(),
-                      ),
+                      MaterialPageRoute(builder: (context) => AuthScreen()),
                       (route) => false,
                     );
                   },

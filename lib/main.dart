@@ -235,26 +235,30 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
       final authToken = session.authToken!;
       final currentUser = await _repository.getCurrentUser(authToken);
       if (!currentUser.termsAccepted) {
-        await ref.read(sessionProvider.notifier).saveSession(
-          authToken: authToken,
-          userId: currentUser.userId,
-          email: currentUser.email,
-          displayName: currentUser.displayName,
-          hasCv: false,
-          termsAccepted: false,
-        );
+        await ref
+            .read(sessionProvider.notifier)
+            .saveSession(
+              authToken: authToken,
+              userId: currentUser.userId,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              hasCv: false,
+              termsAccepted: false,
+            );
         return;
       }
 
       final status = await _repository.getUserStatus(authToken);
-      await ref.read(sessionProvider.notifier).saveSession(
-        authToken: authToken,
-        userId: currentUser.userId,
-        email: currentUser.email,
-        displayName: currentUser.displayName,
-        hasCv: status.hasCv && status.hasEmbeddings,
-        termsAccepted: currentUser.termsAccepted,
-      );
+      await ref
+          .read(sessionProvider.notifier)
+          .saveSession(
+            authToken: authToken,
+            userId: currentUser.userId,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            hasCv: status.hasCv && status.hasEmbeddings,
+            termsAccepted: currentUser.termsAccepted,
+          );
     } catch (_) {
       await ref.read(sessionProvider.notifier).clear();
     } finally {
@@ -271,15 +275,11 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
     final session = ref.watch(sessionProvider);
 
     if (_isBootstrapping) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (!session.hasSession) {
-      return const AuthScreen();
+      return AuthScreen();
     }
 
     if (!session.termsAccepted) {
