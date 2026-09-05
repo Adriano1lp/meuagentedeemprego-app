@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/consent_outdated.dart';
+import '../../data/legal_versions.dart';
 import '../../data/repositories/auth_repository_impl.dart';
+import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
+import '../widgets/legal_document_panel.dart';
 import 'home_screen.dart';
 import 'user_registration_screen.dart';
 
@@ -30,6 +34,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       TextEditingController();
 
   bool _isSubmitting = false;
+  bool _termsAccepted = false;
+  bool _privacyAccepted = false;
+  bool _termsViewed = false;
+  bool _privacyViewed = false;
+
+  bool get _canCreateAccount =>
+      _termsAccepted && _privacyAccepted && _termsViewed && _privacyViewed;
 
   @override
   void dispose() {
@@ -51,11 +62,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       return;
     }
 
+    if (!_termsAccepted || !_privacyAccepted) {
+      _showMessage(
+        'Aceite os Termos de uso e a Politica de privacidade para criar a conta.',
+      );
+      return;
+    }
+
     await _authenticate(
       action: () => _repository.register(
         displayName: displayName,
         email: email,
         password: password,
+        termsAccepted: true,
+        privacyAccepted: true,
       ),
     );
   }
@@ -86,18 +106,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
     try {
       final sessionData = await action();
-      final status = await _repository.getUserStatus(sessionData.authToken);
+      ref.read(consentProvider.notifier).applyFromUser(
+        termsVersion: sessionData.termsVersion,
+        privacyVersion: sessionData.privacyVersion,
+      );
+
+      var hasCv = false;
+      try {
+        final status = await _repository.getUserStatus(sessionData.authToken);
+        hasCv = status.hasCv && status.hasEmbeddings;
+      } on ConsentOutdatedException catch (error) {
+        ref.read(consentProvider.notifier).applyException(error);
+      }
+
       await ref.read(sessionProvider.notifier).saveSession(
         authToken: sessionData.authToken,
         userId: sessionData.userId,
         email: sessionData.email,
         displayName: sessionData.displayName,
-        hasCv: status.hasCv && status.hasEmbeddings,
+        hasCv: hasCv,
       );
 
       if (!mounted) return;
 
-      final nextScreen = (status.hasCv && status.hasEmbeddings)
+      final nextScreen = hasCv
           ? const HomeScreen()
           : const UserRegistrationScreen();
       Navigator.of(context).pushReplacement(
@@ -105,6 +137,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+      ref.read(consentProvider.notifier).applyIfOutdated(e);
       _showMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
@@ -241,11 +274,51 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   hintText: 'Senha com pelo menos 8 caracteres',
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
+              LegalDocumentPanel(
+                doc: LegalDoc.terms,
+                accepted: _termsAccepted,
+                enabled: !_isSubmitting,
+                onLoaded: (viewed) {
+                  setState(() {
+                    _termsViewed = viewed;
+                    if (!viewed) {
+                      _termsAccepted = false;
+                    }
+                  });
+                },
+                onAccepted: (value) {
+                  setState(() {
+                    _termsAccepted = value;
+                  });
+                },
+              ),
+              LegalDocumentPanel(
+                doc: LegalDoc.privacy,
+                accepted: _privacyAccepted,
+                enabled: !_isSubmitting,
+                onLoaded: (viewed) {
+                  setState(() {
+                    _privacyViewed = viewed;
+                    if (!viewed) {
+                      _privacyAccepted = false;
+                    }
+                  });
+                },
+                onAccepted: (value) {
+                  setState(() {
+                    _privacyAccepted = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _isSubmitting ? null : _register,
+                  key: const ValueKey('createAccountButton'),
+                  onPressed: _isSubmitting || !_canCreateAccount
+                      ? null
+                      : _register,
                   style: FilledButton.styleFrom(backgroundColor: _green),
                   icon: _buildLoadingIcon(),
                   label: Text(_isSubmitting ? 'Criando...' : 'Criar conta'),

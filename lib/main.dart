@@ -3,12 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'data/consent_outdated.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/models/message_model.dart';
+import 'presentation/app_navigator.dart';
 import 'presentation/screens/auth_screen.dart';
 import 'presentation/screens/home_screen.dart';
+import 'presentation/providers/consent_provider.dart';
 import 'presentation/providers/session_provider.dart';
 import 'presentation/screens/user_registration_screen.dart';
+import 'presentation/widgets/consent_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -196,6 +200,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Agente de Emprego',
       theme: theme,
+      navigatorKey: appNavigatorKey,
+      builder: (context, child) {
+        return ConsentGate(child: child ?? const SizedBox.shrink());
+      },
       home: const AppEntryPoint(),
     );
   }
@@ -231,17 +239,32 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
 
     try {
       final authToken = session.authToken!;
-      final currentUser = await _repository.getCurrentUser(authToken);
-      final status = await _repository.getUserStatus(authToken);
-      await ref.read(sessionProvider.notifier).saveSession(
-        authToken: authToken,
-        userId: currentUser.userId,
-        email: currentUser.email,
-        displayName: currentUser.displayName,
-        hasCv: status.hasCv && status.hasEmbeddings,
-      );
+      try {
+        final currentUser = await _repository.getCurrentUser(authToken);
+        ref.read(consentProvider.notifier).applyFromUser(
+          termsVersion: currentUser.termsVersion,
+          privacyVersion: currentUser.privacyVersion,
+        );
+        final status = await _repository.getUserStatus(authToken);
+        await ref.read(sessionProvider.notifier).saveSession(
+          authToken: authToken,
+          userId: currentUser.userId,
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+          hasCv: status.hasCv && status.hasEmbeddings,
+        );
+      } on ConsentOutdatedException catch (error) {
+        ref.read(consentProvider.notifier).applyException(error);
+        try {
+          final status = await _repository.getUserStatus(authToken);
+          await ref.read(sessionProvider.notifier).updateHasCv(
+            status.hasCv && status.hasEmbeddings,
+          );
+        } catch (_) {}
+      }
     } catch (_) {
       await ref.read(sessionProvider.notifier).clear();
+      ref.read(consentProvider.notifier).clear();
     } finally {
       if (mounted) {
         setState(() {

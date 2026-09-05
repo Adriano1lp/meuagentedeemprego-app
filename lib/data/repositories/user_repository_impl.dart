@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../api_errors.dart';
 import 'chat_repository_impl.dart';
 
 class UserRepositoryImpl {
@@ -70,28 +71,11 @@ class UserRepositoryImpl {
         throw Exception('Erro no upload do curriculo: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      if (e.type == DioExceptionType.connectionTimeout) {
-        throw Exception('Tempo de conexao esgotado');
-      }
-
-      if (e.type == DioExceptionType.connectionError) {
-        throw Exception(
-          'Nao foi possivel alcancar a API em ${ChatRepositoryImpl.apiBaseUrl}. '
-          'No celular, localhost aponta para o proprio aparelho. '
-          'Use o IP do computador na rede local.',
-        );
-      }
-
-      final detail = e.response?.data;
-      if (detail is Map<String, dynamic> && detail['detail'] is String) {
-        throw Exception(detail['detail'] as String);
-      }
-
-      if (e.response?.statusCode == 404) {
-        throw Exception('Endpoint upload-cv nao encontrado');
-      }
-
-      throw Exception('Falha ao enviar curriculo');
+      rethrowApiError(
+        e,
+        fallback: 'Falha ao enviar curriculo',
+        apiBaseUrl: ChatRepositoryImpl.apiBaseUrl,
+      );
     } catch (e) {
       throw Exception('Erro inesperado: $e');
     }
@@ -108,28 +92,11 @@ class UserRepositoryImpl {
         throw Exception('Erro ao processar curriculo: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      if (e.type == DioExceptionType.connectionTimeout) {
-        throw Exception('Tempo de conexao esgotado');
-      }
-
-      if (e.type == DioExceptionType.connectionError) {
-        throw Exception(
-          'Nao foi possivel alcancar a API em ${ChatRepositoryImpl.apiBaseUrl}. '
-          'No celular, localhost aponta para o proprio aparelho. '
-          'Use o IP do computador na rede local.',
-        );
-      }
-
-      final detail = e.response?.data;
-      if (detail is Map<String, dynamic> && detail['detail'] is String) {
-        throw Exception(detail['detail'] as String);
-      }
-
-      if (e.response?.statusCode == 404) {
-        throw Exception('Endpoint rebuild-embeddings nao encontrado');
-      }
-
-      throw Exception('Falha ao processar curriculo');
+      rethrowApiError(
+        e,
+        fallback: 'Falha ao processar curriculo',
+        apiBaseUrl: ChatRepositoryImpl.apiBaseUrl,
+      );
     } catch (e) {
       throw Exception('Erro inesperado: $e');
     }

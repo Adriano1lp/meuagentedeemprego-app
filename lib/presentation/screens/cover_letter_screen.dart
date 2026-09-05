@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/cover_letter_repository_impl.dart';
 import '../../domain/entities/chat_message.dart';
+import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/chat_bubble.dart';
@@ -72,6 +73,7 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      ref.read(consentProvider.notifier).applyIfOutdated(e);
       _showMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {

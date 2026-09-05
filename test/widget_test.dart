@@ -45,6 +45,6 @@ void main() {
 
     expect(find.text('Entrar na conta'), findsOneWidget);
     expect(find.text('Entrar'), findsWidgets);
-    expect(find.text('Criar conta'), findsOneWidget);
+    expect(find.text('Criar conta'), findsWidgets);
   });
 }

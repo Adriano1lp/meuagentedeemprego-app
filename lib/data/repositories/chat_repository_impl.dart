@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:hive/hive.dart';
 
 import '../../domain/entities/chat_message.dart';
+import '../api_errors.dart';
 import '../models/message_model.dart';
 
 class ChatRepositoryImpl {
@@ -60,22 +61,11 @@ class ChatRepositoryImpl {
         timestamp: DateTime.now(),
       );
     } on DioException catch (e) {
-      String errorMessage = 'Falha ao conectar com a API';
-
-      if (e.type == DioExceptionType.connectionTimeout) {
-        errorMessage = 'Tempo de conexao esgotado';
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage =
-            'Nao foi possivel alcancar a API em $apiBaseUrl. '
-            'No celular, localhost aponta para o proprio aparelho. '
-            'Use o IP do computador na rede local.';
-      } else if (_extractApiDetail(e) case final detail?) {
-        errorMessage = detail;
-      } else if (e.response?.statusCode == 404) {
-        errorMessage = 'Endpoint nao encontrado';
-      }
-
-      throw Exception(errorMessage);
+      rethrowApiError(
+        e,
+        fallback: 'Falha ao conectar com a API',
+        apiBaseUrl: apiBaseUrl,
+      );
     } catch (e) {
       throw Exception('Erro inesperado: $e');
     }
@@ -102,18 +92,6 @@ class ChatRepositoryImpl {
     }
 
     return trimmed;
-  }
-
-  String? _extractApiDetail(DioException error) {
-    final data = error.response?.data;
-    if (data is Map<String, dynamic> && data['detail'] is String) {
-      final detail = (data['detail'] as String).trim();
-      if (detail.isNotEmpty) {
-        return detail;
-      }
-    }
-
-    return null;
   }
 
   Map<String, String> _buildAuthHeaders() {

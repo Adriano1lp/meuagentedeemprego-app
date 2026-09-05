@@ -2,7 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/consent_outdated.dart';
 import '../../data/repositories/chat_repository_impl.dart';
+import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import 'pdf_file_handler.dart';
 
@@ -43,6 +45,13 @@ class AuthenticatedPdfOpener {
       final fileHandler = createPdfFileHandler();
       await fileHandler.openPdf(bytes: bytes, fileName: fileName);
     } on DioException catch (e) {
+      final consentError = ConsentOutdatedException.tryParse(e);
+      if (consentError != null) {
+        container.read(consentProvider.notifier).applyException(consentError);
+        _showMessage(messenger, consentError.message);
+        return;
+      }
+
       final data = e.response?.data;
       if (data is Map<String, dynamic> && data['detail'] is String) {
         _showMessage(messenger, data['detail'] as String);
@@ -50,7 +59,13 @@ class AuthenticatedPdfOpener {
       }
 
       _showMessage(messenger, 'Nao foi possivel baixar o PDF autenticado.');
-    } catch (_) {
+    } catch (e) {
+      final consentError = ConsentOutdatedException.fromError(e);
+      if (consentError != null) {
+        container.read(consentProvider.notifier).applyException(consentError);
+        _showMessage(messenger, consentError.message);
+        return;
+      }
       _showMessage(messenger, 'Nao foi possivel abrir o PDF.');
     }
   }
