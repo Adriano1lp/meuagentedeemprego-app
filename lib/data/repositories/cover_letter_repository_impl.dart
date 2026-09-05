@@ -1,20 +1,18 @@
 import 'package:dio/dio.dart';
 
 import '../../domain/entities/chat_message.dart';
+import '../api_config.dart';
 import '../api_errors.dart';
+import '../token_store.dart';
 import 'chat_repository_impl.dart';
 
 class CoverLetterRepositoryImpl {
-  CoverLetterRepositoryImpl()
-    : _dio = Dio(
-        BaseOptions(
-          baseUrl: ChatRepositoryImpl.apiBaseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
-        ),
-      );
+  CoverLetterRepositoryImpl({Dio? dio, TokenStore? tokenStore})
+    : _tokenStore = tokenStore ?? activeTokenStore,
+      _dio = dio ?? createApiDio(tokenStore: tokenStore);
 
   final Dio _dio;
+  final TokenStore _tokenStore;
 
   Future<ChatMessage> generateCoverLetter({
     required String companyName,
@@ -29,7 +27,7 @@ class CoverLetterRepositoryImpl {
       final response = await _dio.post(
         '/users/me/cover-letter',
         data: {'empresa': empresa},
-        options: Options(headers: {'Authorization': 'Bearer $authToken'}),
+        options: Options(headers: await _bearerHeaders(authToken)),
       );
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -73,5 +71,9 @@ class CoverLetterRepositoryImpl {
     }
 
     return trimmed;
+  }
+
+  Future<Map<String, String>> _bearerHeaders(String fallbackToken) {
+    return resolveBearerHeaders(_tokenStore, fallbackToken: fallbackToken);
   }
 }

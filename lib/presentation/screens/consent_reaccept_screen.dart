@@ -39,8 +39,7 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
   bool _isSubmitting = false;
 
   Future<void> _submit() async {
-    final session = ref.read(sessionProvider);
-    final authToken = session.authToken;
+    final authToken = await ref.read(sessionProvider.notifier).readAccessToken();
     final outdated = ref.read(consentProvider).outdatedDocs;
 
     if (authToken == null || authToken.trim().isEmpty) {

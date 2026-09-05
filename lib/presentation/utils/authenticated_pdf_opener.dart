@@ -2,8 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/api_config.dart';
 import '../../data/consent_outdated.dart';
 import '../../data/repositories/chat_repository_impl.dart';
+import '../../data/token_store.dart';
 import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import 'pdf_file_handler.dart';
@@ -14,7 +16,8 @@ class AuthenticatedPdfOpener {
     final messenger = ScaffoldMessenger.of(context);
     final session = container.read(sessionProvider);
     final userId = session.userId;
-    final authToken = session.authToken;
+    final tokenStore = container.read(secureTokenStoreProvider);
+    final authToken = await tokenStore.readAccessToken();
 
     if (userId == null || userId.trim().isEmpty) {
       _showMessage(messenger, 'Usuario nao encontrado para abrir o PDF.');
@@ -22,16 +25,12 @@ class AuthenticatedPdfOpener {
     }
 
     try {
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: ChatRepositoryImpl.apiBaseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
-          headers: authToken != null && authToken.trim().isNotEmpty
-              ? {'Authorization': 'Bearer $authToken'}
-              : {'X-User-Id': userId},
-          responseType: ResponseType.bytes,
-        ),
+      final dio = createApiDio(
+        tokenStore: tokenStore,
+        responseType: ResponseType.bytes,
+        headers: authToken != null && authToken.trim().isNotEmpty
+            ? {'Authorization': 'Bearer $authToken'}
+            : {'X-User-Id': userId},
       );
 
       final downloadUri = _resolveDownloadUri(uri);

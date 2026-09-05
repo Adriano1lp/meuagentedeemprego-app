@@ -2,32 +2,29 @@ import 'package:dio/dio.dart';
 import 'package:hive/hive.dart';
 
 import '../../domain/entities/chat_message.dart';
+import '../api_config.dart';
 import '../api_errors.dart';
 import '../models/message_model.dart';
+import '../token_store.dart';
 
 class ChatRepositoryImpl {
-  static const String apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000',
-  );
+  static String get apiBaseUrl => ApiConfig.apiBaseUrl;
 
   final Box<MessageModel> _box;
-  final String? _authToken;
+  final TokenStore _tokenStore;
   final String? _userId;
-  final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: apiBaseUrl,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-    ),
-  );
+  final Dio _dio;
 
-  ChatRepositoryImpl(this._box, {String? authToken, String? userId})
-    : _authToken = authToken,
-      _userId = userId;
+  ChatRepositoryImpl(
+    this._box, {
+    TokenStore? tokenStore,
+    String? userId,
+  }) : _tokenStore = tokenStore ?? activeTokenStore,
+       _userId = userId,
+       _dio = createApiDio(tokenStore: tokenStore ?? activeTokenStore);
 
   Future<ChatMessage> sendMessage(String text) async {
-    final authToken = _authToken;
+    final authToken = await _tokenStore.readAccessToken();
     final userId = _userId;
 
     if ((authToken == null || authToken.trim().isEmpty) &&
@@ -39,7 +36,7 @@ class ChatRepositoryImpl {
       final response = await _dio.post(
         '/processar',
         data: {'texto': text},
-        options: Options(headers: _buildAuthHeaders()),
+        options: Options(headers: await _buildAuthHeaders()),
       );
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -94,8 +91,8 @@ class ChatRepositoryImpl {
     return trimmed;
   }
 
-  Map<String, String> _buildAuthHeaders() {
-    final authToken = _authToken;
+  Future<Map<String, String>> _buildAuthHeaders() async {
+    final authToken = await _tokenStore.readAccessToken();
     if (authToken != null && authToken.trim().isNotEmpty) {
       return {'Authorization': 'Bearer $authToken'};
     }

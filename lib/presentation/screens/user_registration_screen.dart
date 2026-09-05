@@ -54,9 +54,9 @@ class _UserRegistrationScreenState
 
   Future<void> _submit() async {
     final file = _selectedFile;
-    final session = ref.read(sessionProvider);
+    final authToken = await ref.read(sessionProvider.notifier).readAccessToken();
 
-    if (session.authToken == null || session.authToken!.trim().isEmpty) {
+    if (authToken == null || authToken.trim().isEmpty) {
       setState(() {
         _statusMessage = 'Sessao expirada. Entre novamente.';
       });
@@ -87,7 +87,7 @@ class _UserRegistrationScreenState
 
     try {
       await _repository.uploadCv(
-        authToken: session.authToken!,
+        authToken: authToken,
         fileName: file.name,
         filePath: file.path,
         fileBytes: file.bytes,
@@ -98,7 +98,7 @@ class _UserRegistrationScreenState
         _statusMessage = 'Curriculo enviado. Processando embeddings...';
       });
 
-      await _repository.rebuildEmbeddings(authToken: session.authToken!);
+      await _repository.rebuildEmbeddings(authToken: authToken);
 
       await ref.read(sessionProvider.notifier).updateHasCv(true);
 

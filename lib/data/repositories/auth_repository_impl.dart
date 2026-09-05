@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 
+import '../api_config.dart';
 import '../api_errors.dart';
 import '../legal_versions.dart';
+import '../token_store.dart';
 import 'chat_repository_impl.dart';
 
 class AuthSessionData {
@@ -33,16 +35,12 @@ class UserStatusData {
 }
 
 class AuthRepositoryImpl {
-  AuthRepositoryImpl()
-    : _dio = Dio(
-        BaseOptions(
-          baseUrl: ChatRepositoryImpl.apiBaseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
-        ),
-      );
+  AuthRepositoryImpl({Dio? dio, TokenStore? tokenStore})
+    : _tokenStore = tokenStore ?? activeTokenStore,
+      _dio = dio ?? createApiDio(tokenStore: tokenStore);
 
   final Dio _dio;
+  final TokenStore _tokenStore;
 
   Future<AuthSessionData> register({
     required String displayName,
@@ -84,7 +82,7 @@ class AuthRepositoryImpl {
     try {
       final response = await _dio.get(
         '/auth/me',
-        options: Options(headers: _bearerHeaders(authToken)),
+        options: Options(headers: await _bearerHeaders(authToken)),
       );
       final data = response.data;
       if (data is! Map<String, dynamic>) {
@@ -112,7 +110,7 @@ class AuthRepositoryImpl {
     try {
       final response = await _dio.get(
         '/users/me/status',
-        options: Options(headers: _bearerHeaders(authToken)),
+        options: Options(headers: await _bearerHeaders(authToken)),
       );
       final data = response.data;
       if (data is! Map<String, dynamic>) {
@@ -172,9 +170,7 @@ class AuthRepositoryImpl {
     );
   }
 
-  Map<String, String> _bearerHeaders(String authToken) {
-    return {
-      'Authorization': 'Bearer $authToken',
-    };
+  Future<Map<String, String>> _bearerHeaders(String fallbackToken) {
+    return resolveBearerHeaders(_tokenStore, fallbackToken: fallbackToken);
   }
 }
