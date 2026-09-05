@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../domain/entities/chat_message.dart';
+import '../api_errors.dart';
 import 'chat_repository_impl.dart';
 
 class CoverLetterRepositoryImpl {
@@ -50,7 +51,11 @@ class CoverLetterRepositoryImpl {
         timestamp: DateTime.now(),
       );
     } on DioException catch (e) {
-      throw Exception(_extractErrorMessage(e));
+      rethrowApiError(
+        e,
+        fallback: 'Falha ao gerar carta de apresentacao',
+        apiBaseUrl: ChatRepositoryImpl.apiBaseUrl,
+      );
     } catch (e) {
       throw Exception('Erro inesperado: $e');
     }
@@ -68,26 +73,5 @@ class CoverLetterRepositoryImpl {
     }
 
     return trimmed;
-  }
-
-  String _extractErrorMessage(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout) {
-      return 'Tempo de conexao esgotado';
-    }
-
-    if (error.type == DioExceptionType.connectionError) {
-      return 'Nao foi possivel alcancar a API em ${ChatRepositoryImpl.apiBaseUrl}.';
-    }
-
-    final data = error.response?.data;
-    if (data is Map<String, dynamic> && data['detail'] is String) {
-      return data['detail'] as String;
-    }
-
-    if (error.response?.statusCode == 404) {
-      return 'Endpoint de carta de apresentacao nao encontrado';
-    }
-
-    return 'Falha ao gerar carta de apresentacao';
   }
 }

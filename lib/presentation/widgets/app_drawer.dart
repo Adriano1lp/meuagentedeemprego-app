@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import '../screens/auth_screen.dart';
 import '../screens/chat_screen.dart';
@@ -213,6 +214,7 @@ class AppDrawer extends ConsumerWidget {
                   onPressed: () async {
                     Navigator.pop(context);
                     await ref.read(sessionProvider.notifier).clear();
+                    ref.read(consentProvider.notifier).clear();
                     if (!context.mounted) return;
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(

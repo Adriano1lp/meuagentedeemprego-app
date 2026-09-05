@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 
+import '../../data/consent_outdated.dart';
 import '../../data/models/message_model.dart';
 import '../../data/repositories/chat_repository_impl.dart';
 import '../../domain/entities/chat_message.dart';
 import '../validators/job_description_validator.dart';
+import 'consent_provider.dart';
 import 'session_provider.dart';
 
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
@@ -16,6 +18,9 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
       authToken: session.authToken,
       userId: session.userId,
     ),
+    onConsentOutdated: (error) {
+      ref.read(consentProvider.notifier).applyException(error);
+    },
   );
 });
 
@@ -46,9 +51,12 @@ class ChatState {
 
 class ChatNotifier extends StateNotifier<ChatState> {
   final ChatRepositoryImpl _repository;
+  final void Function(ConsentOutdatedException error)? onConsentOutdated;
 
-  ChatNotifier(this._repository)
-    : super(ChatState(messages: _repository.getHistory()));
+  ChatNotifier(
+    this._repository, {
+    this.onConsentOutdated,
+  }) : super(ChatState(messages: _repository.getHistory()));
 
   Future<bool> sendMessage(String text) async {
     if (state.isLoading) return false;
@@ -87,6 +95,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
         clearError: true,
       );
     } catch (e) {
+      final consentError = ConsentOutdatedException.fromError(e);
+      if (consentError != null) {
+        onConsentOutdated?.call(consentError);
+      }
       state = state.copyWith(
         isLoading: false,
         errorMessage: e.toString().replaceFirst('Exception: ', ''),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/chat_repository_impl.dart';
 import '../../data/repositories/user_repository_impl.dart';
+import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import 'home_screen.dart';
 
@@ -118,6 +119,7 @@ class _UserRegistrationScreenState
       );
     } catch (e) {
       if (!mounted) return;
+      ref.read(consentProvider.notifier).applyIfOutdated(e);
       setState(() {
         _statusMessage = 'Falha no envio do curriculo.';
       });

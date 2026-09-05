@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../api_errors.dart';
+import '../legal_versions.dart';
 import 'chat_repository_impl.dart';
 
 class AuthSessionData {
@@ -7,12 +9,16 @@ class AuthSessionData {
   final String userId;
   final String email;
   final String displayName;
+  final String? termsVersion;
+  final String? privacyVersion;
 
   const AuthSessionData({
     required this.authToken,
     required this.userId,
     required this.email,
     required this.displayName,
+    this.termsVersion,
+    this.privacyVersion,
   });
 }
 
@@ -42,6 +48,8 @@ class AuthRepositoryImpl {
     required String displayName,
     required String email,
     required String password,
+    required bool termsAccepted,
+    required bool privacyAccepted,
   }) async {
     final response = await _post(
       '/auth/register',
@@ -49,6 +57,10 @@ class AuthRepositoryImpl {
         'display_name': displayName.trim(),
         'email': email.trim(),
         'password': password,
+        ...buildRegisterConsentFields(
+          termsAccepted: termsAccepted,
+          privacyAccepted: privacyAccepted,
+        ),
       },
     );
     return _parseAuthSession(response.data);
@@ -84,9 +96,15 @@ class AuthRepositoryImpl {
         userId: data['user_id'] as String? ?? '',
         email: data['email'] as String? ?? '',
         displayName: data['display_name'] as String? ?? '',
+        termsVersion: data['terms_version'] as String?,
+        privacyVersion: data['privacy_version'] as String?,
       );
     } on DioException catch (e) {
-      throw Exception(_extractErrorMessage(e));
+      rethrowApiError(
+        e,
+        fallback: 'Falha ao autenticar com a API',
+        apiBaseUrl: ChatRepositoryImpl.apiBaseUrl,
+      );
     }
   }
 
@@ -106,7 +124,11 @@ class AuthRepositoryImpl {
         hasEmbeddings: data['has_embeddings'] == true,
       );
     } on DioException catch (e) {
-      throw Exception(_extractErrorMessage(e));
+      rethrowApiError(
+        e,
+        fallback: 'Falha ao autenticar com a API',
+        apiBaseUrl: ChatRepositoryImpl.apiBaseUrl,
+      );
     }
   }
 
@@ -121,7 +143,11 @@ class AuthRepositoryImpl {
       }
       return response;
     } on DioException catch (e) {
-      throw Exception(_extractErrorMessage(e));
+      rethrowApiError(
+        e,
+        fallback: 'Falha ao autenticar com a API',
+        apiBaseUrl: ChatRepositoryImpl.apiBaseUrl,
+      );
     }
   }
 
@@ -141,6 +167,8 @@ class AuthRepositoryImpl {
       userId: user['user_id'] as String? ?? '',
       email: user['email'] as String? ?? '',
       displayName: user['display_name'] as String? ?? '',
+      termsVersion: user['terms_version'] as String?,
+      privacyVersion: user['privacy_version'] as String?,
     );
   }
 
@@ -148,26 +176,5 @@ class AuthRepositoryImpl {
     return {
       'Authorization': 'Bearer $authToken',
     };
-  }
-
-  String _extractErrorMessage(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout) {
-      return 'Tempo de conexao esgotado';
-    }
-
-    if (error.type == DioExceptionType.connectionError) {
-      return 'Nao foi possivel alcancar a API em ${ChatRepositoryImpl.apiBaseUrl}.';
-    }
-
-    final data = error.response?.data;
-    if (data is Map<String, dynamic> && data['detail'] is String) {
-      return data['detail'] as String;
-    }
-
-    if (error.response?.statusCode == 404) {
-      return 'Endpoint nao encontrado';
-    }
-
-    return 'Falha ao autenticar com a API';
   }
 }
