@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
 import '../api_config.dart';
 import '../api_errors.dart';
@@ -9,19 +8,7 @@ import 'chat_repository_impl.dart';
 class UserRepositoryImpl {
   UserRepositoryImpl({Dio? dio, TokenStore? tokenStore})
     : _tokenStore = tokenStore ?? activeTokenStore,
-      _dio = dio ?? createApiDio(tokenStore: tokenStore) {
-    if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(
-          requestHeader: true,
-          requestBody: false,
-          responseHeader: false,
-          responseBody: false,
-          error: true,
-        ),
-      );
-    }
-  }
+      _dio = dio ?? createApiDio(tokenStore: tokenStore);
 
   final Dio _dio;
   final TokenStore _tokenStore;

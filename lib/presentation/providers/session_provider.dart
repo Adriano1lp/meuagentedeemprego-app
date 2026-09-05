@@ -15,24 +15,22 @@ final sessionProvider =
     });
 
 class SessionState {
-  final String? authToken;
+  final bool hasSession;
   final String? userId;
   final String? email;
   final String? displayName;
   final bool hasCv;
 
   const SessionState({
-    this.authToken,
+    this.hasSession = false,
     this.userId,
     this.email,
     this.displayName,
     this.hasCv = false,
   });
 
-  bool get hasSession => authToken != null && authToken!.trim().isNotEmpty;
-
   SessionState copyWith({
-    String? authToken,
+    bool? hasSession,
     String? userId,
     String? email,
     String? displayName,
@@ -44,7 +42,7 @@ class SessionState {
     }
 
     return SessionState(
-      authToken: authToken ?? this.authToken,
+      hasSession: hasSession ?? this.hasSession,
       userId: userId ?? this.userId,
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
@@ -57,7 +55,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
   SessionNotifier(this._box, this._tokenStore)
     : super(
         SessionState(
-          authToken: _tokenStore.cachedAccessToken,
+          hasSession: _hasStoredToken(_tokenStore.cachedAccessToken),
           userId: _box.get(_userIdKey),
           email: _box.get(_emailKey),
           displayName: _box.get(_displayNameKey),
@@ -96,7 +94,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
     await _box.put(_hasCvKey, hasCv.toString());
 
     state = SessionState(
-      authToken: authToken,
+      hasSession: true,
       userId: normalizedUserId,
       email: email.trim().toLowerCase(),
       displayName: displayName.trim(),
@@ -118,6 +116,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
     await _box.delete(_displayNameKey);
     await _box.delete(_hasCvKey);
     state = const SessionState();
+  }
+
+  static bool _hasStoredToken(String? token) {
+    return token != null && token.trim().isNotEmpty;
   }
 
   static String normalizeUserId(String value) {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'data/api_config.dart';
 import 'data/consent_outdated.dart';
 import 'data/models/message_model.dart';
 import 'data/repositories/auth_repository_impl.dart';
@@ -21,6 +22,8 @@ Future<void> main() async {
   Hive.registerAdapter(MessageModelAdapter());
   await Hive.openBox<MessageModel>('chat_history');
   final sessionBox = await Hive.openBox<String>(SessionStorageKeys.hiveBoxName);
+
+  ApiConfig.ensureSafeBaseUrl();
 
   final tokenStore = SecureTokenStore();
   bindActiveTokenStore(tokenStore);

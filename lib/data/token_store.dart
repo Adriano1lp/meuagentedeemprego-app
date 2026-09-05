@@ -125,7 +125,10 @@ class SecureTokenStore implements TokenStore {
   SecureTokenStore({FlutterSecureStorage? storage})
     : _storage = storage ??
           const FlutterSecureStorage(
-            aOptions: AndroidOptions(encryptedSharedPreferences: true),
+            aOptions: AndroidOptions(
+              // Keystore-backed ciphertext. Not SharedPreferences plaintext.
+              encryptedSharedPreferences: true,
+            ),
             iOptions: IOSOptions(
               accessibility: KeychainAccessibility.first_unlock_this_device,
               synchronizable: false,

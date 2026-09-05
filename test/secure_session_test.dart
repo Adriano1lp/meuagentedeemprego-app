@@ -51,7 +51,7 @@ void main() {
     expect(sessionBox.get(SessionStorageKeys.hiveAuthToken), isNull);
     expect(hiveHoldsPlaintextToken(sessionBox, token), isFalse);
     expect(await store.readAccessToken(), token);
-    expect(notifier.state.authToken, token);
+    expect(notifier.state.hasSession, isTrue);
     expect(sessionBox.get('user_id'), 'user_1');
   });
 
@@ -81,7 +81,6 @@ void main() {
     expect(await store.readAccessToken(), isNull);
     expect(await store.readRefreshToken(), isNull);
     expect(notifier.state.hasSession, isFalse);
-    expect(notifier.state.authToken, isNull);
     expect(sessionBox.get(SessionStorageKeys.hiveAuthToken), isNull);
     expect(sessionBox.get('user_id'), isNull);
     expect(sessionBox.get('email'), isNull);
@@ -104,7 +103,6 @@ void main() {
 
     expect(await freshStore.readAccessToken(), isNull);
     expect(notifier.state.hasSession, isFalse);
-    expect(notifier.state.authToken, isNull);
   });
 
   test('migra auth_token plaintext do Hive para o cofre e apaga o legado', () async {

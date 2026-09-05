@@ -34,4 +34,25 @@ void main() {
       'https://api.meuagentedeemprego.com.br',
     );
   });
+
+  test('release bloqueia o default http://127.0.0.1:8000', () {
+    expect(
+      () => ApiConfig.resolveApiBaseUrl(
+        'http://127.0.0.1:8000',
+        isDebug: false,
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test('logger de debug nao imprime headers nem body (sem JWT)', () {
+    expect(createSafeDebugLogInterceptor(isDebug: false), isNull);
+
+    final interceptor = createSafeDebugLogInterceptor(isDebug: true);
+    expect(interceptor, isNotNull);
+    expect(interceptor!.requestHeader, isFalse);
+    expect(interceptor.requestBody, isFalse);
+    expect(interceptor.responseHeader, isFalse);
+    expect(interceptor.responseBody, isFalse);
+  });
 }

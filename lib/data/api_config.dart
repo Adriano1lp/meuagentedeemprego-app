@@ -11,6 +11,11 @@ class ApiConfig {
 
   static String get apiBaseUrl => resolveApiBaseUrl(rawApiBaseUrl);
 
+  /// Call at startup so a release build with `http://` fails before any request.
+  static void ensureSafeBaseUrl({bool? isDebug}) {
+    resolveApiBaseUrl(rawApiBaseUrl, isDebug: isDebug);
+  }
+
   /// Release/profile builds must talk to HTTPS only. Debug keeps `http://`
   /// so local API development still works.
   static String resolveApiBaseUrl(String url, {bool? isDebug}) {
@@ -46,7 +51,28 @@ Dio createApiDio({
     ),
   );
   dio.interceptors.add(SecureAuthInterceptor(tokenStore ?? activeTokenStore));
+  final debugLog = createSafeDebugLogInterceptor();
+  if (debugLog != null) {
+    dio.interceptors.add(debugLog);
+  }
   return dio;
+}
+
+/// Debug-only Dio logger. Never logs headers/body so Authorization/JWT
+/// cannot leak via print, logcat, or crash reporters.
+LogInterceptor? createSafeDebugLogInterceptor({bool? isDebug}) {
+  final debug = isDebug ?? kDebugMode;
+  if (!debug) {
+    return null;
+  }
+  return LogInterceptor(
+    request: true,
+    requestHeader: false,
+    requestBody: false,
+    responseHeader: false,
+    responseBody: false,
+    error: true,
+  );
 }
 
 class SecureAuthInterceptor extends Interceptor {
