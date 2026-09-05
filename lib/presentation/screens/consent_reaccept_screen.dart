@@ -159,7 +159,7 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Termos ${CURRENT_TERMS_VERSION} e privacidade ${CURRENT_PRIVACY_VERSION}.',
+                        'Termos $CURRENT_TERMS_VERSION e privacidade $CURRENT_PRIVACY_VERSION.',
                         style: theme.textTheme.bodyMedium?.copyWith(color: _ink),
                       ),
                       const SizedBox(height: 12),

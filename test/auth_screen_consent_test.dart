@@ -1,11 +1,10 @@
 import 'dart:io';
 
-import 'package:agente_emprego/data/consent_outdated.dart';
 import 'package:agente_emprego/data/legal_versions.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
 import 'package:agente_emprego/presentation/providers/consent_provider.dart';
 import 'package:agente_emprego/presentation/screens/auth_screen.dart';
-import 'package:agente_emprego/presentation/widgets/consent_gate.dart';
+import 'package:agente_emprego/presentation/screens/consent_reaccept_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,7 +52,6 @@ void main() {
     final termsCheckbox = find.byKey(const ValueKey('termsAcceptCheckbox'));
     final privacyCheckbox = find.byKey(const ValueKey('privacyAcceptCheckbox'));
 
-    await tester.ensureVisible(createButton);
     expect(createButton, findsOneWidget);
     expect(tester.widget<FilledButton>(createButton).onPressed, isNull);
     expect(termsCheckbox, findsOneWidget);
@@ -61,52 +59,70 @@ void main() {
     expect(find.byKey(const ValueKey('openTermsLink')), findsOneWidget);
     expect(find.byKey(const ValueKey('openPrivacyLink')), findsOneWidget);
 
-    await tester.ensureVisible(termsCheckbox);
     await tester.tap(termsCheckbox);
     await tester.pump();
     expect(tester.widget<FilledButton>(createButton).onPressed, isNull);
 
-    await tester.ensureVisible(privacyCheckbox);
     await tester.tap(privacyCheckbox);
     await tester.pump();
     expect(tester.widget<FilledButton>(createButton).onPressed, isNotNull);
   });
 
-  testWidgets('gate bloqueia o app quando o consentimento esta desatualizado', (
+  testWidgets('tela de reaceite pede os documentos desatualizados', (
     WidgetTester tester,
   ) async {
-    final session = Hive.box<String>('app_session');
-    await session.put('auth_token', 'token');
-    await session.put('user_id', 'user_1');
-    await session.put('email', 'user@example.com');
-    await session.put('display_name', 'Usuario Teste');
-    await session.put('has_cv', 'true');
-
     await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          builder: (context, child) {
-            return ConsentGate(child: child ?? const SizedBox.shrink());
-          },
-          home: const Scaffold(body: Text('APP_LIBERADO')),
-        ),
+      const ProviderScope(
+        child: MaterialApp(home: _ConsentReacceptHarness()),
       ),
     );
+    await tester.pump();
 
-    expect(find.text('APP_LIBERADO'), findsOneWidget);
-
-    final context = tester.element(find.text('APP_LIBERADO'));
-    ProviderScope.containerOf(context).read(consentProvider.notifier).applyException(
-      const ConsentOutdatedException(
-        doc: LegalDoc.terms,
-        code: ConsentOutdatedException.termsCode,
-        message: 'Termos desatualizados',
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('APP_LIBERADO'), findsNothing);
     expect(find.text('Atualizar aceites'), findsOneWidget);
-    expect(find.text('Aceitar e continuar'), findsOneWidget);
+    expect(find.byKey(const ValueKey('termsAcceptCheckbox')), findsOneWidget);
+    expect(find.byKey(const ValueKey('privacyAcceptCheckbox')), findsNothing);
+    expect(find.byKey(const ValueKey('reacceptConsentButton')), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('reacceptConsentButton')))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('termsAcceptCheckbox')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('reacceptConsentButton')))
+          .onPressed,
+      isNotNull,
+    );
   });
+}
+
+class _ConsentReacceptHarness extends ConsumerStatefulWidget {
+  const _ConsentReacceptHarness();
+
+  @override
+  ConsumerState<_ConsentReacceptHarness> createState() =>
+      _ConsentReacceptHarnessState();
+}
+
+class _ConsentReacceptHarnessState
+    extends ConsumerState<_ConsentReacceptHarness> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(consentProvider.notifier).applyFromUser(
+        termsVersion: '0.9',
+        privacyVersion: CURRENT_PRIVACY_VERSION,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const ConsentReacceptScreen();
+  }
 }

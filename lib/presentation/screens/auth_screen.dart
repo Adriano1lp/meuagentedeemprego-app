@@ -125,9 +125,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       );
 
       if (!mounted) return;
-      if (ref.read(consentProvider).blocksApp) {
-        return;
-      }
 
       final nextScreen = hasCv
           ? const HomeScreen()

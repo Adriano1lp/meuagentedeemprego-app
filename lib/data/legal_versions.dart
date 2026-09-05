@@ -1,5 +1,7 @@
 /// Versoes vigentes alinhadas com a API (`CURRENT_TERMS_VERSION` / `CURRENT_PRIVACY_VERSION`).
+// ignore: constant_identifier_names
 const String CURRENT_TERMS_VERSION = '1.0';
+// ignore: constant_identifier_names
 const String CURRENT_PRIVACY_VERSION = '1.0';
 
 enum LegalDoc {

@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'data/consent_outdated.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/models/message_model.dart';
+import 'presentation/app_navigator.dart';
 import 'presentation/screens/auth_screen.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/providers/consent_provider.dart';
@@ -199,6 +200,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Agente de Emprego',
       theme: theme,
+      navigatorKey: appNavigatorKey,
       builder: (context, child) {
         return ConsentGate(child: child ?? const SizedBox.shrink());
       },
