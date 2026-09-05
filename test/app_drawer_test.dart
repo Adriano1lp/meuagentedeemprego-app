@@ -1,15 +1,20 @@
 import 'dart:io';
 
 import 'package:agente_emprego/data/models/message_model.dart';
+import 'package:agente_emprego/data/token_store.dart';
+import 'package:agente_emprego/presentation/providers/session_provider.dart';
 import 'package:agente_emprego/presentation/screens/chat_screen.dart';
 import 'package:agente_emprego/presentation/screens/home_screen.dart';
 import 'package:agente_emprego/presentation/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
+import 'helpers/session_test_harness.dart';
+
 void main() {
+  late MemoryTokenStore tokenStore;
+
   setUpAll(() async {
     final tempDir = await Directory.systemTemp.createTemp('drawer_test');
     Hive.init(tempDir.path);
@@ -27,14 +32,17 @@ void main() {
   });
 
   setUp(() async {
+    tokenStore = bindTestTokenStore();
     await Hive.box<MessageModel>('chat_history').clear();
     final sessionBox = Hive.box<String>('app_session');
     await sessionBox.clear();
-    await sessionBox.put('auth_token', 'token');
-    await sessionBox.put('user_id', 'user_1');
-    await sessionBox.put('email', 'user@example.com');
-    await sessionBox.put('display_name', 'Usuario Teste');
-    await sessionBox.put('has_cv', 'true');
+    await SessionNotifier(sessionBox, tokenStore).saveSession(
+      authToken: 'token',
+      userId: 'user_1',
+      email: 'user@example.com',
+      displayName: 'Usuario Teste',
+      hasCv: true,
+    );
   });
 
   tearDownAll(() async {
@@ -46,8 +54,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
+      testProviderScope(
+        tokenStore: tokenStore,
+        child: const MaterialApp(
           home: AppDrawer(),
         ),
       ),
@@ -63,8 +72,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
+      testProviderScope(
+        tokenStore: tokenStore,
+        child: const MaterialApp(
           home: ChatScreen(),
         ),
       ),

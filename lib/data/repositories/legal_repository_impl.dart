@@ -1,8 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api_config.dart';
 import '../api_errors.dart';
 import '../legal_versions.dart';
+import '../token_store.dart';
 import 'chat_repository_impl.dart';
 
 abstract class LegalRepository {
@@ -32,16 +34,12 @@ class LegalDocumentData {
 }
 
 class LegalRepositoryImpl implements LegalRepository {
-  LegalRepositoryImpl()
-    : _dio = Dio(
-        BaseOptions(
-          baseUrl: ChatRepositoryImpl.apiBaseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
-        ),
-      );
+  LegalRepositoryImpl({Dio? dio, TokenStore? tokenStore})
+    : _tokenStore = tokenStore ?? activeTokenStore,
+      _dio = dio ?? createApiDio(tokenStore: tokenStore);
 
   final Dio _dio;
+  final TokenStore _tokenStore;
 
   @override
   Future<LegalDocumentData> fetchDocument(
@@ -90,7 +88,7 @@ class LegalRepositoryImpl implements LegalRepository {
         '/consent',
         data: buildConsentRequest(doc, version: resolvedVersion),
         options: Options(
-          headers: {'Authorization': 'Bearer $authToken'},
+          headers: await _bearerHeaders(authToken),
         ),
       );
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -113,5 +111,9 @@ class LegalRepositoryImpl implements LegalRepository {
       return String.fromCharCodes(data);
     }
     return data?.toString() ?? '';
+  }
+
+  Future<Map<String, String>> _bearerHeaders(String fallbackToken) {
+    return resolveBearerHeaders(_tokenStore, fallbackToken: fallbackToken);
   }
 }

@@ -1,39 +1,28 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
+import '../api_config.dart';
 import '../api_errors.dart';
+import '../token_store.dart';
 import 'chat_repository_impl.dart';
 
 class UserRepositoryImpl {
-  UserRepositoryImpl()
-    : _dio = Dio(
-        BaseOptions(
-          baseUrl: ChatRepositoryImpl.apiBaseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
-        ),
-      ) {
-    if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(
-          requestHeader: true,
-          requestBody: false,
-          responseHeader: false,
-          responseBody: false,
-          error: true,
-        ),
-      );
-    }
-  }
+  UserRepositoryImpl({Dio? dio, TokenStore? tokenStore})
+    : _tokenStore = tokenStore ?? activeTokenStore,
+      _dio = dio ?? createApiDio(tokenStore: tokenStore);
 
   final Dio _dio;
+  final TokenStore _tokenStore;
 
-  Options _userOptions({
+  Future<Options> _userOptions({
     String? authToken,
     String? userId,
-  }) {
-    if (authToken != null && authToken.trim().isNotEmpty) {
-      return Options(headers: {'Authorization': 'Bearer $authToken'});
+  }) async {
+    final stored = await _tokenStore.readAccessToken();
+    final token = (stored != null && stored.trim().isNotEmpty)
+        ? stored
+        : authToken;
+    if (token != null && token.trim().isNotEmpty) {
+      return Options(headers: {'Authorization': 'Bearer $token'});
     }
     return Options(headers: {'X-User-Id': userId});
   }
@@ -64,7 +53,7 @@ class UserRepositoryImpl {
       final response = await _dio.post(
         '/users/me/upload-cv',
         data: formData,
-        options: _userOptions(authToken: authToken),
+        options: await _userOptions(authToken: authToken),
       );
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -85,7 +74,7 @@ class UserRepositoryImpl {
     try {
       final response = await _dio.post(
         '/users/me/rebuild-embeddings',
-        options: _userOptions(authToken: authToken),
+        options: await _userOptions(authToken: authToken),
       );
 
       if (response.statusCode != 200 && response.statusCode != 201) {

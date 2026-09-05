@@ -1,12 +1,16 @@
 import 'dart:io';
 
 import 'package:agente_emprego/data/models/message_model.dart';
+import 'package:agente_emprego/data/token_store.dart';
 import 'package:agente_emprego/main.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
+import 'helpers/session_test_harness.dart';
+
 void main() {
+  late MemoryTokenStore tokenStore;
+
   setUpAll(() async {
     final tempDir = await Directory.systemTemp.createTemp('agente_emprego_test');
     Hive.init(tempDir.path);
@@ -23,7 +27,8 @@ void main() {
     }
   });
 
-  tearDown(() async {
+  setUp(() async {
+    tokenStore = bindTestTokenStore();
     await Hive.box<MessageModel>('chat_history').clear();
     await Hive.box<String>('app_session').clear();
   });
@@ -37,8 +42,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MyApp(),
+      testProviderScope(
+        tokenStore: tokenStore,
+        child: const MyApp(),
       ),
     );
     await tester.pumpAndSettle();

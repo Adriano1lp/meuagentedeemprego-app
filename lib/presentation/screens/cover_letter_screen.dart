@@ -35,8 +35,7 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
 
   Future<void> _handleGenerate() async {
     final companyName = _companyController.text.trim();
-    final session = ref.read(sessionProvider);
-    final authToken = session.authToken;
+    final authToken = await ref.read(sessionProvider.notifier).readAccessToken();
 
     if (companyName.isEmpty) {
       _showMessage('Informe o nome da empresa.');

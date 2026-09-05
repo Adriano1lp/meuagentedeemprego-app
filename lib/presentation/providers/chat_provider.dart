@@ -15,7 +15,7 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   return ChatNotifier(
     ChatRepositoryImpl(
       box,
-      authToken: session.authToken,
+      tokenStore: ref.watch(secureTokenStoreProvider),
       userId: session.userId,
     ),
     onConsentOutdated: (error) {

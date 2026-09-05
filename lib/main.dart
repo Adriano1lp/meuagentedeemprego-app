@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'data/api_config.dart';
 import 'data/consent_outdated.dart';
-import 'data/repositories/auth_repository_impl.dart';
 import 'data/models/message_model.dart';
+import 'data/repositories/auth_repository_impl.dart';
+import 'data/token_store.dart';
 import 'presentation/app_navigator.dart';
 import 'presentation/screens/auth_screen.dart';
 import 'presentation/screens/home_screen.dart';
@@ -19,9 +21,22 @@ Future<void> main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(MessageModelAdapter());
   await Hive.openBox<MessageModel>('chat_history');
-  await Hive.openBox<String>('app_session');
+  final sessionBox = await Hive.openBox<String>(SessionStorageKeys.hiveBoxName);
 
-  runApp(const ProviderScope(child: MyApp()));
+  ApiConfig.ensureSafeBaseUrl();
+
+  final tokenStore = SecureTokenStore();
+  bindActiveTokenStore(tokenStore);
+  await SessionBootstrap.prepare(sessionBox, tokenStore);
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        secureTokenStoreProvider.overrideWithValue(tokenStore),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -238,7 +253,16 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
     }
 
     try {
-      final authToken = session.authToken!;
+      final authToken = await ref.read(sessionProvider.notifier).readAccessToken();
+      if (authToken == null || authToken.trim().isEmpty) {
+        await ref.read(sessionProvider.notifier).clear();
+        if (mounted) {
+          setState(() {
+            _isBootstrapping = false;
+          });
+        }
+        return;
+      }
       try {
         final currentUser = await _repository.getCurrentUser(authToken);
         ref.read(consentProvider.notifier).applyFromUser(

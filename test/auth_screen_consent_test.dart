@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:agente_emprego/data/legal_versions.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
 import 'package:agente_emprego/data/repositories/legal_repository_impl.dart';
+import 'package:agente_emprego/data/token_store.dart';
 import 'package:agente_emprego/presentation/providers/consent_provider.dart';
 import 'package:agente_emprego/presentation/screens/auth_screen.dart';
 import 'package:agente_emprego/presentation/screens/consent_reaccept_screen.dart';
@@ -10,6 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
+
+import 'helpers/session_test_harness.dart';
 
 class _FakeLegalRepository implements LegalRepository {
   final List<Map<String, String>> consentCalls = [];
@@ -38,6 +41,7 @@ class _FakeLegalRepository implements LegalRepository {
 
 void main() {
   late _FakeLegalRepository legalRepository;
+  late MemoryTokenStore tokenStore;
 
   setUpAll(() async {
     final tempDir = await Directory.systemTemp.createTemp('consent_ui_test');
@@ -56,6 +60,7 @@ void main() {
 
   setUp(() async {
     legalRepository = _FakeLegalRepository();
+    tokenStore = bindTestTokenStore();
     await Hive.box<MessageModel>('chat_history').clear();
     await Hive.box<String>('app_session').clear();
   });
@@ -66,7 +71,8 @@ void main() {
   });
 
   Widget wrap(Widget child) {
-    return ProviderScope(
+    return testProviderScope(
+      tokenStore: tokenStore,
       overrides: [
         legalRepositoryProvider.overrideWithValue(legalRepository),
       ],
