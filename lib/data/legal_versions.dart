@@ -40,3 +40,13 @@ Map<String, dynamic> buildRegisterConsentFields({
     'privacy_version': CURRENT_PRIVACY_VERSION,
   };
 }
+
+Map<String, String> buildConsentRequest(
+  LegalDoc doc, {
+  String? version,
+}) {
+  return {
+    'doc': doc.apiValue,
+    'version': (version ?? doc.currentVersion).trim(),
+  };
+}

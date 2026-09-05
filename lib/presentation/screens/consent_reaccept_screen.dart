@@ -5,9 +5,10 @@ import '../../data/consent_outdated.dart';
 import '../../data/legal_versions.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../data/repositories/legal_repository_impl.dart';
+import '../app_navigator.dart';
 import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
-import '../widgets/legal_accept_checkbox.dart';
+import '../widgets/legal_document_panel.dart';
 import 'auth_screen.dart';
 
 class ConsentReacceptScreen extends ConsumerStatefulWidget {
@@ -24,10 +25,13 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
   static const Color _yellow = Color(0xFFFFE16A);
   static const Color _green = Color(0xFFB6F36A);
 
-  final LegalRepositoryImpl _legalRepository = LegalRepositoryImpl();
   final AuthRepositoryImpl _authRepository = AuthRepositoryImpl();
 
   final Map<LegalDoc, bool> _accepted = {
+    LegalDoc.terms: false,
+    LegalDoc.privacy: false,
+  };
+  final Map<LegalDoc, bool> _viewed = {
     LegalDoc.terms: false,
     LegalDoc.privacy: false,
   };
@@ -44,8 +48,8 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
       return;
     }
 
-    if (outdated.any((doc) => _accepted[doc] != true)) {
-      _showMessage('Marque os documentos vigentes para continuar.');
+    if (outdated.any((doc) => _accepted[doc] != true || _viewed[doc] != true)) {
+      _showMessage('Leia e marque os documentos vigentes para continuar.');
       return;
     }
 
@@ -54,13 +58,13 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
     });
 
     try {
+      final legalRepository = ref.read(legalRepositoryProvider);
       for (final doc in outdated) {
-        await _legalRepository.acceptConsent(
+        await legalRepository.acceptConsent(
           authToken: authToken,
           doc: doc,
           version: doc.currentVersion,
         );
-        ref.read(consentProvider.notifier).markAccepted(doc);
       }
 
       try {
@@ -99,7 +103,7 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
     await ref.read(sessionProvider.notifier).clear();
     ref.read(consentProvider.notifier).clear();
     if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+    appNavigatorKey.currentState?.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthScreen()),
       (route) => false,
     );
@@ -111,7 +115,8 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
     final consent = ref.watch(consentProvider);
     final outdated = consent.outdatedDocs;
     final canSubmit =
-        outdated.isNotEmpty && outdated.every((doc) => _accepted[doc] == true);
+        outdated.isNotEmpty &&
+        outdated.every((doc) => _accepted[doc] == true && _viewed[doc] == true);
 
     return PopScope(
       canPop: false,
@@ -139,7 +144,7 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Suas versoes aceitas nao sao as vigentes. Leia os documentos, marque os checkboxes e confirme. O app fica bloqueado ate o reaceite via POST /consent.',
+                        'Suas versoes aceitas nao sao as vigentes. Leia o texto carregado da API, marque os checkboxes e confirme. O app fica bloqueado ate o reaceite via POST /consent.',
                         style: theme.textTheme.bodyLarge?.copyWith(color: _ink),
                       ),
                     ],
@@ -163,19 +168,25 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
                         style: theme.textTheme.bodyMedium?.copyWith(color: _ink),
                       ),
                       const SizedBox(height: 12),
-                      for (final doc in outdated) ...[
-                        LegalAcceptCheckbox(
+                      for (final doc in outdated)
+                        LegalDocumentPanel(
                           doc: doc,
-                          value: _accepted[doc] == true,
-                          onChanged: (value) {
+                          accepted: _accepted[doc] == true,
+                          enabled: !_isSubmitting,
+                          onLoaded: (viewed) {
+                            setState(() {
+                              _viewed[doc] = viewed;
+                              if (!viewed) {
+                                _accepted[doc] = false;
+                              }
+                            });
+                          },
+                          onAccepted: (value) {
                             setState(() {
                               _accepted[doc] = value;
                             });
                           },
-                          enabled: !_isSubmitting,
                         ),
-                        const SizedBox(height: 8),
-                      ],
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
@@ -196,7 +207,9 @@ class _ConsentReacceptScreenState extends ConsumerState<ConsentReacceptScreen> {
                                 )
                               : const Icon(Icons.verified_outlined),
                           label: Text(
-                            _isSubmitting ? 'Enviando aceites...' : 'Aceitar e continuar',
+                            _isSubmitting
+                                ? 'Enviando aceites...'
+                                : 'Aceitar e continuar',
                           ),
                         ),
                       ),

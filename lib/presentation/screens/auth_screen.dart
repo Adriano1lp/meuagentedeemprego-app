@@ -6,7 +6,7 @@ import '../../data/legal_versions.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
-import '../widgets/legal_accept_checkbox.dart';
+import '../widgets/legal_document_panel.dart';
 import 'home_screen.dart';
 import 'user_registration_screen.dart';
 
@@ -36,8 +36,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _isSubmitting = false;
   bool _termsAccepted = false;
   bool _privacyAccepted = false;
+  bool _termsViewed = false;
+  bool _privacyViewed = false;
 
-  bool get _canCreateAccount => _termsAccepted && _privacyAccepted;
+  bool get _canCreateAccount =>
+      _termsAccepted && _privacyAccepted && _termsViewed && _privacyViewed;
 
   @override
   void dispose() {
@@ -272,25 +275,41 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              LegalAcceptCheckbox(
+              LegalDocumentPanel(
                 doc: LegalDoc.terms,
-                value: _termsAccepted,
-                onChanged: (value) {
+                accepted: _termsAccepted,
+                enabled: !_isSubmitting,
+                onLoaded: (viewed) {
+                  setState(() {
+                    _termsViewed = viewed;
+                    if (!viewed) {
+                      _termsAccepted = false;
+                    }
+                  });
+                },
+                onAccepted: (value) {
                   setState(() {
                     _termsAccepted = value;
                   });
                 },
-                enabled: !_isSubmitting,
               ),
-              LegalAcceptCheckbox(
+              LegalDocumentPanel(
                 doc: LegalDoc.privacy,
-                value: _privacyAccepted,
-                onChanged: (value) {
+                accepted: _privacyAccepted,
+                enabled: !_isSubmitting,
+                onLoaded: (viewed) {
+                  setState(() {
+                    _privacyViewed = viewed;
+                    if (!viewed) {
+                      _privacyAccepted = false;
+                    }
+                  });
+                },
+                onAccepted: (value) {
                   setState(() {
                     _privacyAccepted = value;
                   });
                 },
-                enabled: !_isSubmitting,
               ),
               const SizedBox(height: 12),
               SizedBox(

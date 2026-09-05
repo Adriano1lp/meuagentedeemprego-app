@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:agente_emprego/data/legal_versions.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
+import 'package:agente_emprego/data/repositories/legal_repository_impl.dart';
 import 'package:agente_emprego/presentation/providers/consent_provider.dart';
 import 'package:agente_emprego/presentation/screens/auth_screen.dart';
 import 'package:agente_emprego/presentation/screens/consent_reaccept_screen.dart';
@@ -10,7 +11,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
+class _FakeLegalRepository implements LegalRepository {
+  final List<Map<String, String>> consentCalls = [];
+
+  @override
+  Future<LegalDocumentData> fetchDocument(
+    LegalDoc doc, {
+    String? version,
+  }) async {
+    return LegalDocumentData(
+      doc: doc,
+      version: version ?? doc.currentVersion,
+      markdown: 'Texto vigente de ${doc.title} v${version ?? doc.currentVersion}',
+    );
+  }
+
+  @override
+  Future<void> acceptConsent({
+    required String authToken,
+    required LegalDoc doc,
+    String? version,
+  }) async {
+    consentCalls.add(buildConsentRequest(doc, version: version));
+  }
+}
+
 void main() {
+  late _FakeLegalRepository legalRepository;
+
   setUpAll(() async {
     final tempDir = await Directory.systemTemp.createTemp('consent_ui_test');
     Hive.init(tempDir.path);
@@ -27,6 +55,7 @@ void main() {
   });
 
   setUp(() async {
+    legalRepository = _FakeLegalRepository();
     await Hive.box<MessageModel>('chat_history').clear();
     await Hive.box<String>('app_session').clear();
   });
@@ -36,67 +65,77 @@ void main() {
     await Hive.box<String>('app_session').close();
   });
 
-  testWidgets('signup exige os dois checkboxes antes de criar conta', (
+  Widget wrap(Widget child) {
+    return ProviderScope(
+      overrides: [
+        legalRepositoryProvider.overrideWithValue(legalRepository),
+      ],
+      child: MaterialApp(home: child),
+    );
+  }
+
+  testWidgets('signup mostra os docs, checkboxes desmarcados e bloqueia criar conta', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: AuthScreen()),
-      ),
-    );
+    await tester.pumpWidget(wrap(const AuthScreen()));
 
     await tester.tap(find.text('Criar conta').first);
     await tester.pumpAndSettle();
 
+    expect(find.text('GET /legal/terms?version=1.0'), findsOneWidget);
+    expect(find.text('GET /legal/privacy?version=1.0'), findsOneWidget);
+    expect(find.text('Texto vigente de Termos de uso v1.0'), findsOneWidget);
+    expect(
+      find.text('Texto vigente de Politica de privacidade v1.0'),
+      findsOneWidget,
+    );
+
+    final termsCheckbox = tester.widget<Checkbox>(
+      find.byKey(const ValueKey('termsAcceptCheckbox')),
+    );
+    final privacyCheckbox = tester.widget<Checkbox>(
+      find.byKey(const ValueKey('privacyAcceptCheckbox')),
+    );
+    expect(termsCheckbox.value, isFalse);
+    expect(privacyCheckbox.value, isFalse);
+
     final createButton = find.byKey(const ValueKey('createAccountButton'));
-    final termsCheckbox = find.byKey(const ValueKey('termsAcceptCheckbox'));
-    final privacyCheckbox = find.byKey(const ValueKey('privacyAcceptCheckbox'));
-
-    expect(createButton, findsOneWidget);
     expect(tester.widget<FilledButton>(createButton).onPressed, isNull);
-    expect(termsCheckbox, findsOneWidget);
-    expect(privacyCheckbox, findsOneWidget);
-    expect(find.byKey(const ValueKey('openTermsLink')), findsOneWidget);
-    expect(find.byKey(const ValueKey('openPrivacyLink')), findsOneWidget);
 
-    await tester.tap(termsCheckbox);
+    await tester.ensureVisible(find.byKey(const ValueKey('termsAcceptCheckbox')));
+    await tester.tap(find.byKey(const ValueKey('termsAcceptCheckbox')));
     await tester.pump();
     expect(tester.widget<FilledButton>(createButton).onPressed, isNull);
 
-    await tester.tap(privacyCheckbox);
+    await tester.ensureVisible(find.byKey(const ValueKey('privacyAcceptCheckbox')));
+    await tester.tap(find.byKey(const ValueKey('privacyAcceptCheckbox')));
     await tester.pump();
     expect(tester.widget<FilledButton>(createButton).onPressed, isNotNull);
   });
 
-  testWidgets('tela de reaceite pede os documentos desatualizados', (
+  testWidgets('reaceite mostra o texto vigente e so libera depois do checkbox', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: _ConsentReacceptHarness()),
-      ),
-    );
-    await tester.pump();
+    await tester.pumpWidget(wrap(const _ConsentReacceptHarness()));
+    await tester.pumpAndSettle();
 
     expect(find.text('Atualizar aceites'), findsOneWidget);
-    expect(find.byKey(const ValueKey('termsAcceptCheckbox')), findsOneWidget);
+    expect(find.text('GET /legal/terms?version=1.0'), findsOneWidget);
+    expect(find.text('Texto vigente de Termos de uso v1.0'), findsOneWidget);
     expect(find.byKey(const ValueKey('privacyAcceptCheckbox')), findsNothing);
-    expect(find.byKey(const ValueKey('reacceptConsentButton')), findsOneWidget);
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const ValueKey('reacceptConsentButton')))
-          .onPressed,
-      isNull,
-    );
 
+    final termsCheckbox = tester.widget<Checkbox>(
+      find.byKey(const ValueKey('termsAcceptCheckbox')),
+    );
+    expect(termsCheckbox.value, isFalse);
+
+    final reacceptButton = find.byKey(const ValueKey('reacceptConsentButton'));
+    expect(tester.widget<FilledButton>(reacceptButton).onPressed, isNull);
+
+    await tester.ensureVisible(find.byKey(const ValueKey('termsAcceptCheckbox')));
     await tester.tap(find.byKey(const ValueKey('termsAcceptCheckbox')));
     await tester.pump();
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const ValueKey('reacceptConsentButton')))
-          .onPressed,
-      isNotNull,
-    );
+    expect(tester.widget<FilledButton>(reacceptButton).onPressed, isNotNull);
   });
 }
 

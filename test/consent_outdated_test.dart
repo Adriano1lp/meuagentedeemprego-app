@@ -22,6 +22,19 @@ void main() {
     });
   });
 
+  group('buildConsentRequest', () {
+    test('POST /consent envia doc e versao vigente 1.0', () {
+      expect(buildConsentRequest(LegalDoc.terms), {
+        'doc': 'terms',
+        'version': '1.0',
+      });
+      expect(buildConsentRequest(LegalDoc.privacy), {
+        'doc': 'privacy',
+        'version': '1.0',
+      });
+    });
+  });
+
   group('ConsentOutdatedException', () {
     test('parseia 403 com detail.code TERMS_OUTDATED', () {
       final error = DioException(

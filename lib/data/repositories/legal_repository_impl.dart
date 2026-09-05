@@ -1,8 +1,23 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api_errors.dart';
 import '../legal_versions.dart';
 import 'chat_repository_impl.dart';
+
+abstract class LegalRepository {
+  Future<LegalDocumentData> fetchDocument(LegalDoc doc, {String? version});
+
+  Future<void> acceptConsent({
+    required String authToken,
+    required LegalDoc doc,
+    String? version,
+  });
+}
+
+final legalRepositoryProvider = Provider<LegalRepository>((ref) {
+  return LegalRepositoryImpl();
+});
 
 class LegalDocumentData {
   final LegalDoc doc;
@@ -16,7 +31,7 @@ class LegalDocumentData {
   });
 }
 
-class LegalRepositoryImpl {
+class LegalRepositoryImpl implements LegalRepository {
   LegalRepositoryImpl()
     : _dio = Dio(
         BaseOptions(
@@ -28,6 +43,7 @@ class LegalRepositoryImpl {
 
   final Dio _dio;
 
+  @override
   Future<LegalDocumentData> fetchDocument(
     LegalDoc doc, {
     String? version,
@@ -62,6 +78,7 @@ class LegalRepositoryImpl {
     }
   }
 
+  @override
   Future<void> acceptConsent({
     required String authToken,
     required LegalDoc doc,
@@ -71,10 +88,7 @@ class LegalRepositoryImpl {
     try {
       final response = await _dio.post<dynamic>(
         '/consent',
-        data: {
-          'doc': doc.apiValue,
-          'version': resolvedVersion,
-        },
+        data: buildConsentRequest(doc, version: resolvedVersion),
         options: Options(
           headers: {'Authorization': 'Bearer $authToken'},
         ),
