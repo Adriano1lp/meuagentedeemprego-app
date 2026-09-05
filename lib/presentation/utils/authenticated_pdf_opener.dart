@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/api_config.dart';
 import '../../data/consent_outdated.dart';
 import '../../data/repositories/chat_repository_impl.dart';
-import '../../data/token_store.dart';
 import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import 'pdf_file_handler.dart';

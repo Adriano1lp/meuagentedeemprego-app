@@ -8,6 +8,7 @@ import 'package:agente_emprego/presentation/providers/consent_provider.dart';
 import 'package:agente_emprego/presentation/screens/auth_screen.dart';
 import 'package:agente_emprego/presentation/screens/consent_reaccept_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
