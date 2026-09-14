@@ -1,12 +1,9 @@
-# Build a signed Android release APK and upload it to Firebase App Distribution.
+# Upload the current Android release APK to Firebase App Distribution.
 #
-# Triggers:
-#   - workflow_dispatch (manual; optional release_notes input)
-#   - push to branches matching app-release-* (this repo's release lines)
-#   - push of tags matching v* or app-release-*
-#
-# Scope: Android only. iOS is not wired (no certs / Fastlane / export options).
-# See .github/firebase-app-distribution.md for the secrets checklist.
+# Triggers: workflow_dispatch, push to app-release-*, tags v* / app-release-*
+# Scope: Android only (debug-signed release is OK for internal beta).
+# Signing with a real upload keystore is a follow-up fatia — not in this workflow.
+# See .github/firebase-app-distribution.md
 
 name: Firebase App Distribution (Android)
 
@@ -37,16 +34,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fail if required secrets are missing
+      - name: Fail if required Firebase secrets are missing
         env:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_TESTER_GROUPS: ${{ secrets.FIREBASE_TESTER_GROUPS }}
           FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           missing=0
@@ -60,10 +53,6 @@ jobs:
           }
           require_secret FIREBASE_APP_ID "${FIREBASE_APP_ID}"
           require_secret FIREBASE_SERVICE_ACCOUNT "${FIREBASE_SERVICE_ACCOUNT}"
-          require_secret ANDROID_KEYSTORE_BASE64 "${ANDROID_KEYSTORE_BASE64}"
-          require_secret ANDROID_KEYSTORE_PASSWORD "${ANDROID_KEYSTORE_PASSWORD}"
-          require_secret ANDROID_KEY_ALIAS "${ANDROID_KEY_ALIAS}"
-          require_secret ANDROID_KEY_PASSWORD "${ANDROID_KEY_PASSWORD}"
           if [ -z "${FIREBASE_TESTER_GROUPS}" ] && [ -z "${FIREBASE_TESTERS}" ]; then
             echo "::error::Set FIREBASE_TESTER_GROUPS (preferred) and/or FIREBASE_TESTERS. See .github/firebase-app-distribution.md"
             missing=1
@@ -71,7 +60,7 @@ jobs:
           if [ "${missing}" -ne 0 ]; then
             exit 1
           fi
-          echo "Required secrets are present."
+          echo "Required Firebase secrets are present."
 
       - name: Compose release notes
         env:
@@ -91,27 +80,6 @@ jobs:
           echo "Release notes:"
           cat release-notes.txt
 
-      - name: Decode Android upload keystore
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          echo "${ANDROID_KEYSTORE_BASE64}" | tr -d '\n' | base64 --decode > android/app/upload-keystore.jks
-          if [ ! -s android/app/upload-keystore.jks ]; then
-            echo "::error::ANDROID_KEYSTORE_BASE64 decoded to an empty file. Re-encode the .jks/.keystore with: base64 -w 0 upload-keystore.jks"
-            exit 1
-          fi
-          umask 077
-          {
-            printf 'storePassword=%s\n' "${ANDROID_KEYSTORE_PASSWORD}"
-            printf 'keyPassword=%s\n' "${ANDROID_KEY_PASSWORD}"
-            printf 'keyAlias=%s\n' "${ANDROID_KEY_ALIAS}"
-            printf 'storeFile=%s\n' "upload-keystore.jks"
-          } > android/key.properties
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -129,7 +97,7 @@ jobs:
       - name: Install Dart/Flutter dependencies
         run: flutter pub get
 
-      - name: Build signed release APK
+      - name: Build release APK
         run: flutter build apk --release
 
       - name: Confirm APK exists
