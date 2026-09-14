@@ -1,4 +1,6 @@
+import 'package:agente_emprego/data/repositories/auth_repository_impl.dart';
 import 'package:agente_emprego/data/token_store.dart';
+import 'package:agente_emprego/presentation/providers/chat_provider.dart';
 import 'package:agente_emprego/presentation/providers/session_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,11 +16,18 @@ ProviderScope testProviderScope({
   required Widget child,
   required TokenStore tokenStore,
   List<Override> overrides = const [],
+  UserStatusData userStatus = const UserStatusData(
+    hasCv: true,
+    hasEmbeddings: true,
+  ),
 }) {
   bindActiveTokenStore(tokenStore);
   return ProviderScope(
     overrides: [
       secureTokenStoreProvider.overrideWithValue(tokenStore),
+      userStatusFetcherProvider.overrideWith((ref) {
+        return () async => userStatus;
+      }),
       ...overrides,
     ],
     child: child,

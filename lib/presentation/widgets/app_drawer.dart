@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../navigation/analyze_navigation.dart';
 import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import '../screens/auth_screen.dart';
-import '../screens/chat_screen.dart';
 import '../screens/cover_letter_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/home_screen.dart';
@@ -130,12 +130,7 @@ class AppDrawer extends ConsumerWidget {
                       subtitle: 'Calcular aderencia, gaps e curriculo',
                       onTap: () {
                         Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ChatScreen(),
-                          ),
-                        );
+                        openAnaliseVaga(context, ref);
                       },
                     ),
                     const SizedBox(height: 10),

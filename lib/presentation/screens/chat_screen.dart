@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/chat_bubble.dart';
+import 'user_registration_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -38,9 +39,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (errorMessage != null && errorMessage.isNotEmpty) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(errorMessage)));
+          ..showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              duration: const Duration(seconds: 8),
+            ),
+          );
         ref.read(chatProvider.notifier).clearError();
       }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(chatProvider.notifier).refreshAnalysisReadiness();
     });
   }
 
@@ -124,7 +135,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ),
             ),
-            _buildInputArea(chatState.isLoading),
+            _buildInputArea(chatState),
           ],
         ),
       ),
@@ -210,7 +221,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildInputArea(bool isLoading) {
+  Widget _buildInputArea(ChatState chatState) {
+    final isLoading = chatState.isLoading;
+    final isCheckingStatus = chatState.isCheckingStatus;
+    final canAnalyze = chatState.canAnalyze;
+    final analyzeEnabled = canAnalyze && !isLoading && !isCheckingStatus;
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -218,12 +234,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (chatState.embeddingsMissing) ...[
+              _buildEmbeddingsGate(chatState.analyzeBlockReason),
+              const SizedBox(height: 10),
+            ],
             Padding(
               padding: const EdgeInsets.only(left: 4, bottom: 8),
               child: Text(
                 isLoading
                     ? 'A API esta analisando a vaga e preparando a resposta.'
-                    : 'Cole a vaga, toque em analisar e depois abra o PDF gerado na resposta.',
+                    : isCheckingStatus
+                        ? 'Verificando curriculo e embeddings...'
+                        : canAnalyze
+                            ? 'Cole a vaga, toque em analisar e depois abra o PDF gerado na resposta.'
+                            : (chatState.analyzeBlockReason ??
+                                'Analisar vaga fica bloqueado ate os embeddings ficarem prontos.'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: const Color(0xFF4E5566),
                     ),
@@ -239,7 +264,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
               child: TextField(
                 controller: _messageController,
-                enabled: !isLoading,
+                enabled: analyzeEnabled,
                 minLines: 1,
                 maxLines: 7,
                 decoration: const InputDecoration(
@@ -255,7 +280,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               width: double.infinity,
               height: 56,
               decoration: BoxDecoration(
-                color: isLoading ? _yellow : _pink,
+                color: analyzeEnabled ? _pink : _yellow,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: _ink, width: 3),
                 boxShadow: const [
@@ -266,7 +291,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ],
               ),
               child: FilledButton.icon(
-                onPressed: isLoading ? null : _handleSend,
+                onPressed: analyzeEnabled ? _handleSend : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
@@ -276,7 +301,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     side: BorderSide.none,
                   ),
                 ),
-                icon: isLoading
+                icon: isLoading || isCheckingStatus
                     ? const SizedBox(
                         width: 18,
                         height: 18,
@@ -287,12 +312,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       )
                     : const Icon(Icons.search_rounded),
                 label: Text(
-                  isLoading ? 'Analisando' : 'Analisar vaga',
+                  isLoading
+                      ? 'Analisando'
+                      : isCheckingStatus
+                          ? 'Verificando'
+                          : 'Analisar vaga',
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmbeddingsGate(String? reason) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: _brutalBoxDecoration(_yellow, radius: 18, offset: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            reason ??
+                'Embeddings ainda nao estao prontos. Envie o curriculo e aguarde o processamento.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: _ink),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const UserRegistrationScreen(),
+                  ),
+                );
+                if (!mounted) return;
+                await ref.read(chatProvider.notifier).refreshAnalysisReadiness();
+              },
+              icon: const Icon(Icons.badge_outlined),
+              label: const Text('Enviar curriculo'),
+            ),
+          ),
+        ],
       ),
     );
   }
