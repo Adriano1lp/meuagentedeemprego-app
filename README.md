@@ -2,6 +2,12 @@
 
 A new Flutter project.
 
+## CI/CD (Firebase App Distribution)
+
+Release Android APKs are uploaded to Firebase App Distribution from GitHub Actions.
+See [`.github/firebase-app-distribution.md`](.github/firebase-app-distribution.md)
+for triggers, the secrets Adriano must set, and how Money maintains the testers group.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

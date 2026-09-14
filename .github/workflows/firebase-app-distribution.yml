@@ -1,0 +1,179 @@
+# Build a signed Android release APK and upload it to Firebase App Distribution.
+#
+# Triggers:
+#   - workflow_dispatch (manual; optional release_notes input)
+#   - push to branches matching app-release-* (this repo's release lines)
+#   - push of tags matching v* or app-release-*
+#
+# Scope: Android only. iOS is not wired (no certs / Fastlane / export options).
+# See .github/firebase-app-distribution.md for the secrets checklist.
+
+name: Firebase App Distribution (Android)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: Release notes shown to testers in App Distribution
+        required: false
+        type: string
+  push:
+    branches:
+      - 'app-release-*'
+    tags:
+      - 'v*'
+      - 'app-release-*'
+
+permissions:
+  contents: read
+
+jobs:
+  android-distribute:
+    name: Build and distribute Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fail if required secrets are missing
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TESTER_GROUPS: ${{ secrets.FIREBASE_TESTER_GROUPS }}
+          FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=0
+          require_secret() {
+            local name="$1"
+            local value="$2"
+            if [ -z "${value}" ]; then
+              echo "::error::Missing required GitHub Actions secret: ${name}. See .github/firebase-app-distribution.md"
+              missing=1
+            fi
+          }
+          require_secret FIREBASE_APP_ID "${FIREBASE_APP_ID}"
+          require_secret FIREBASE_SERVICE_ACCOUNT "${FIREBASE_SERVICE_ACCOUNT}"
+          require_secret ANDROID_KEYSTORE_BASE64 "${ANDROID_KEYSTORE_BASE64}"
+          require_secret ANDROID_KEYSTORE_PASSWORD "${ANDROID_KEYSTORE_PASSWORD}"
+          require_secret ANDROID_KEY_ALIAS "${ANDROID_KEY_ALIAS}"
+          require_secret ANDROID_KEY_PASSWORD "${ANDROID_KEY_PASSWORD}"
+          if [ -z "${FIREBASE_TESTER_GROUPS}" ] && [ -z "${FIREBASE_TESTERS}" ]; then
+            echo "::error::Set FIREBASE_TESTER_GROUPS (preferred) and/or FIREBASE_TESTERS. See .github/firebase-app-distribution.md"
+            missing=1
+          fi
+          if [ "${missing}" -ne 0 ]; then
+            exit 1
+          fi
+          echo "Required secrets are present."
+
+      - name: Compose release notes
+        env:
+          DISPATCH_NOTES: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_notes || '' }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${DISPATCH_NOTES}" ]; then
+            printf '%s\n' "${DISPATCH_NOTES}" > release-notes.txt
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            {
+              echo "Release ${{ github.ref_name }}"
+              git log -1 --pretty=%B
+            } > release-notes.txt
+          else
+            git log -1 --pretty=%B > release-notes.txt
+          fi
+          echo "Release notes:"
+          cat release-notes.txt
+
+      - name: Decode Android upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "${ANDROID_KEYSTORE_BASE64}" | tr -d '\n' | base64 --decode > android/app/upload-keystore.jks
+          if [ ! -s android/app/upload-keystore.jks ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 decoded to an empty file. Re-encode the .jks/.keystore with: base64 -w 0 upload-keystore.jks"
+            exit 1
+          fi
+          umask 077
+          {
+            printf 'storePassword=%s\n' "${ANDROID_KEYSTORE_PASSWORD}"
+            printf 'keyPassword=%s\n' "${ANDROID_KEY_PASSWORD}"
+            printf 'keyAlias=%s\n' "${ANDROID_KEY_ALIAS}"
+            printf 'storeFile=%s\n' "upload-keystore.jks"
+          } > android/key.properties
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Pinned to this repo's .metadata (stable revision cc0734ac71 = Flutter 3.41.7 / Dart 3.11.5).
+          flutter-version: '3.41.7'
+          channel: stable
+          cache: true
+
+      - name: Install Dart/Flutter dependencies
+        run: flutter pub get
+
+      - name: Build signed release APK
+        run: flutter build apk --release
+
+      - name: Confirm APK exists
+        run: |
+          set -euo pipefail
+          apk="build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "${apk}" ]; then
+            echo "::error::Expected APK not found at ${apk}"
+            exit 1
+          fi
+          ls -lh "${apk}"
+
+      - name: Authenticate to Google Cloud (Firebase)
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Upload APK to Firebase App Distribution
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_TESTER_GROUPS: ${{ secrets.FIREBASE_TESTER_GROUPS }}
+          FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
+        run: |
+          set -euo pipefail
+          apk="build/app/outputs/flutter-apk/app-release.apk"
+          args=(
+            "${apk}"
+            --app "${FIREBASE_APP_ID}"
+            --release-notes-file release-notes.txt
+          )
+          if [ -n "${FIREBASE_TESTER_GROUPS}" ]; then
+            args+=(--groups "${FIREBASE_TESTER_GROUPS}")
+          fi
+          if [ -n "${FIREBASE_TESTERS}" ]; then
+            args+=(--testers "${FIREBASE_TESTERS}")
+          fi
+          firebase --non-interactive appdistribution:distribute "${args[@]}"
