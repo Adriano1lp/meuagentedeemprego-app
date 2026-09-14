@@ -301,7 +301,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     side: BorderSide.none,
                   ),
                 ),
-                icon: isLoading || isCheckingStatus
+                icon: isLoading
                     ? const SizedBox(
                         width: 18,
                         height: 18,

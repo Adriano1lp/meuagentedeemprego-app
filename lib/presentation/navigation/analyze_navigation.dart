@@ -17,12 +17,7 @@ Future<void> openAnaliseVaga(BuildContext context, WidgetRef ref) async {
     if (reason != null && reason.isNotEmpty) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(reason),
-            duration: const Duration(seconds: 8),
-          ),
-        );
+        ..showSnackBar(SnackBar(content: Text(reason)));
     }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(

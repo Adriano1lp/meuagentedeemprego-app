@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:agente_emprego/data/models/message_model.dart';
 import 'package:agente_emprego/data/token_store.dart';
 import 'package:agente_emprego/presentation/providers/session_provider.dart';
-import 'package:agente_emprego/presentation/screens/chat_screen.dart';
 import 'package:agente_emprego/presentation/screens/home_screen.dart';
+import 'package:agente_emprego/presentation/screens/job_search_screen.dart';
 import 'package:agente_emprego/presentation/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,7 +75,7 @@ void main() {
       testProviderScope(
         tokenStore: tokenStore,
         child: const MaterialApp(
-          home: ChatScreen(),
+          home: JobSearchScreen(),
         ),
       ),
     );

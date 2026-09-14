@@ -103,6 +103,9 @@ class SessionNotifier extends StateNotifier<SessionState> {
   }
 
   Future<void> updateHasCv(bool hasCv) async {
+    if (state.hasCv == hasCv) {
+      return;
+    }
     await _box.put(_hasCvKey, hasCv.toString());
     state = state.copyWith(hasCv: hasCv);
   }

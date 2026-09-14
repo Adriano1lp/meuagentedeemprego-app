@@ -27,12 +27,13 @@ final userStatusFetcherProvider = Provider<UserStatusFetcher>((ref) {
 
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   final box = Hive.box<MessageModel>('chat_history');
-  final session = ref.watch(sessionProvider);
+  // Watch userId only. hasCv updates from this notifier must not recreate it.
+  final userId = ref.watch(sessionProvider.select((session) => session.userId));
   return ChatNotifier(
     ChatRepositoryImpl(
       box,
       tokenStore: ref.watch(secureTokenStoreProvider),
-      userId: session.userId,
+      userId: userId,
     ),
     fetchUserStatus: () => ref.read(userStatusFetcherProvider)(),
     onStatusResolved: (status) {
