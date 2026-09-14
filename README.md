@@ -2,6 +2,11 @@
 
 A new Flutter project.
 
+## CI/CD (Firebase App Distribution)
+
+Android release APKs (debug-signed, internal beta) go to Firebase App Distribution.
+See [`.github/firebase-app-distribution.md`](.github/firebase-app-distribution.md).
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
