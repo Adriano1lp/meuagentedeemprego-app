@@ -45,6 +45,44 @@ void main() {
     );
   });
 
+  test('release sem dart-define usa API de producao HTTPS', () {
+    expect(ApiConfig.productionApiBaseUrl, startsWith('https://'));
+    expect(
+      ApiConfig.resolveApiBaseUrl(
+        ApiConfig.productionApiBaseUrl,
+        isDebug: false,
+      ),
+      ApiConfig.productionApiBaseUrl,
+    );
+    if (ApiConfig.envApiBaseUrl.isEmpty) {
+      expect(
+        ApiConfig.rawApiBaseUrlFor(isDebug: false),
+        ApiConfig.productionApiBaseUrl,
+      );
+      expect(() => ApiConfig.ensureSafeBaseUrl(isDebug: false), returnsNormally);
+    }
+  });
+
+  test('debug sem dart-define continua no localhost http', () {
+    if (ApiConfig.envApiBaseUrl.isNotEmpty) {
+      return;
+    }
+    expect(
+      ApiConfig.rawApiBaseUrlFor(isDebug: true),
+      ApiConfig.debugDefaultApiBaseUrl,
+    );
+  });
+
+  test('release ainda recusa http mesmo com fallback de producao', () {
+    expect(
+      () => ApiConfig.resolveApiBaseUrl(
+        ApiConfig.debugDefaultApiBaseUrl,
+        isDebug: false,
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
   test('logger de debug nao imprime headers nem body (sem JWT)', () {
     expect(createSafeDebugLogInterceptor(isDebug: false), isNull);
 

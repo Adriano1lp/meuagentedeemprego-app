@@ -1,6 +1,10 @@
 # Firebase App Distribution (Android)
 
-GitHub Actions builds the current Android **release APK** (`flutter build apk --release`) and uploads it for the testers group Money maintains in Firebase App Distribution.
+GitHub Actions builds the current Android **release APK** (`flutter build apk --release --dart-define=API_BASE_URL=...`) and uploads it for the testers group Money maintains in Firebase App Distribution.
+
+The app **will not open** in a release APK if `API_BASE_URL` is not HTTPS. `lib/main.dart` calls `ApiConfig.ensureSafeBaseUrl()` before `runApp()`; non-debug builds throw `StateError` on `http://` (including the debug default `http://127.0.0.1:8000`). App Distribution therefore passes production:
+
+`https://meu-agente-de-emprego.onrender.com`
 
 This uses the app **as-is**: `android/app/build.gradle.kts` still signs `release` with the **debug** keystore. That is OK for internal beta. Do not put a keystore or `key.properties` in this repo.
 
@@ -26,6 +30,18 @@ Repo → Settings → Secrets and variables → Actions. Workflow fails fast if 
 | `FIREBASE_SERVICE_ACCOUNT` | JSON key of a GCP service account with **Firebase App Distribution Admin**. Prefer a single-line JSON string. |
 | `FIREBASE_TESTER_GROUPS` | Comma-separated App Distribution **group aliases** (e.g. `mae-testers`). Preferred. |
 | `FIREBASE_TESTERS` | Optional tester emails. At least one of `FIREBASE_TESTER_GROUPS` / `FIREBASE_TESTERS` is required. |
+
+## API base URL (required for the APK to launch)
+
+Not a secret — this is the public production API. The workflow passes it as `--dart-define=API_BASE_URL=...` so the HTTPS-only release gate in `lib/data/api_config.dart` succeeds.
+
+| Name | Where | Purpose |
+| --- | --- | --- |
+| `API_BASE_URL` | Optional **Actions variable** (Settings → Secrets and variables → Actions → Variables). Not a secret. | Override the production API. If unset, CI uses `https://meu-agente-de-emprego.onrender.com`. Must be `https://` with a host; the workflow fails otherwise. |
+
+Do **not** set this to `http://127.0.0.1:8000` (or any `http://` URL). That compiles, then the APK crashes on launch.
+
+Release/profile Dart also falls back to the same production HTTPS URL when `--dart-define` is omitted. Debug still defaults to `http://127.0.0.1:8000` for local API work. The HTTPS-only gate is unchanged.
 
 ## Follow-up secrets (signing fatia — not required now)
 
