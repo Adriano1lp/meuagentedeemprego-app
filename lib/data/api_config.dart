@@ -4,16 +4,30 @@ import 'package:flutter/foundation.dart';
 import 'token_store.dart';
 
 class ApiConfig {
-  static const String rawApiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000',
-  );
+  /// Compile-time override: `--dart-define=API_BASE_URL=https://...`
+  static const String envApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+  static const String debugDefaultApiBaseUrl = 'http://127.0.0.1:8000';
+
+  /// Production MAE API. Release/profile use this when `API_BASE_URL` is unset.
+  static const String productionApiBaseUrl =
+      'https://meu-agente-de-emprego.onrender.com';
+
+  static String rawApiBaseUrlFor({bool? isDebug}) {
+    if (envApiBaseUrl.isNotEmpty) {
+      return envApiBaseUrl;
+    }
+    final debug = isDebug ?? kDebugMode;
+    return debug ? debugDefaultApiBaseUrl : productionApiBaseUrl;
+  }
+
+  static String get rawApiBaseUrl => rawApiBaseUrlFor();
 
   static String get apiBaseUrl => resolveApiBaseUrl(rawApiBaseUrl);
 
   /// Call at startup so a release build with `http://` fails before any request.
   static void ensureSafeBaseUrl({bool? isDebug}) {
-    resolveApiBaseUrl(rawApiBaseUrl, isDebug: isDebug);
+    resolveApiBaseUrl(rawApiBaseUrlFor(isDebug: isDebug), isDebug: isDebug);
   }
 
   /// Release/profile builds must talk to HTTPS only. Debug keeps `http://`

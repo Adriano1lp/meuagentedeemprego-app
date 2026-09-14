@@ -5,6 +5,7 @@ A new Flutter project.
 ## CI/CD (Firebase App Distribution)
 
 Android release APKs (debug-signed, internal beta) go to Firebase App Distribution.
+CI passes `--dart-define=API_BASE_URL=https://meu-agente-de-emprego.onrender.com` so the APK can launch (HTTPS-only gate).
 See [`.github/firebase-app-distribution.md`](.github/firebase-app-distribution.md).
 
 ## Getting Started

@@ -3,6 +3,7 @@
 # Triggers: workflow_dispatch, push to app-release-*, tags v* / app-release-*
 # Scope: Android only (debug-signed release is OK for internal beta).
 # Signing with a real upload keystore is a follow-up fatia — not in this workflow.
+# Builds with --dart-define=API_BASE_URL=https://... (HTTPS required; see docs).
 # See .github/firebase-app-distribution.md
 
 name: Firebase App Distribution (Android)
@@ -98,7 +99,28 @@ jobs:
         run: flutter pub get
 
       - name: Build release APK
-        run: flutter build apk --release
+        env:
+          # Public production API. Optional repo Variable API_BASE_URL overrides.
+          # Must stay HTTPS: lib/main.dart calls ApiConfig.ensureSafeBaseUrl()
+          # before runApp, and release builds throw StateError on http://.
+          API_BASE_URL: ${{ vars.API_BASE_URL || 'https://meu-agente-de-emprego.onrender.com' }}
+        run: |
+          set -euo pipefail
+          case "${API_BASE_URL}" in
+            https://*)
+              host="${API_BASE_URL#https://}"
+              host="${host%%/*}"
+              if [ -z "${host}" ]; then
+                echo "::error::API_BASE_URL must include a host. Got: ${API_BASE_URL}"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::API_BASE_URL must be HTTPS for App Distribution release APKs (ApiConfig.ensureSafeBaseUrl). Got: ${API_BASE_URL}"
+              exit 1
+              ;;
+          esac
+          flutter build apk --release --dart-define="API_BASE_URL=${API_BASE_URL}"
 
       - name: Confirm APK exists
         run: |
