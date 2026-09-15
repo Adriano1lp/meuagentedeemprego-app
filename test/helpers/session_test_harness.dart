@@ -1,5 +1,7 @@
 import 'package:agente_emprego/data/repositories/auth_repository_impl.dart';
+import 'package:agente_emprego/data/services/biometric_auth_service.dart';
 import 'package:agente_emprego/data/token_store.dart';
+import 'package:agente_emprego/presentation/providers/biometric_providers.dart';
 import 'package:agente_emprego/presentation/providers/chat_provider.dart';
 import 'package:agente_emprego/presentation/providers/session_provider.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +27,9 @@ ProviderScope testProviderScope({
   return ProviderScope(
     overrides: [
       secureTokenStoreProvider.overrideWithValue(tokenStore),
+      biometricAuthServiceProvider.overrideWithValue(
+        UnavailableBiometricAuthService(),
+      ),
       userStatusFetcherProvider.overrideWith((ref) {
         return () async => userStatus;
       }),
@@ -32,6 +37,14 @@ ProviderScope testProviderScope({
     ],
     child: child,
   );
+}
+
+class UnavailableBiometricAuthService implements BiometricAuthService {
+  @override
+  Future<bool> authenticate({required String reason}) async => false;
+
+  @override
+  Future<bool> canUseBiometrics() async => false;
 }
 
 bool hiveHoldsPlaintextToken(Box<String> box, String token) {

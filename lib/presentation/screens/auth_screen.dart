@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/consent_outdated.dart';
 import '../../data/legal_versions.dart';
 import '../../data/repositories/auth_repository_impl.dart';
+import '../../domain/biometrics/biometric_login_coordinator.dart';
+import '../providers/biometric_providers.dart';
 import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import '../widgets/legal_document_panel.dart';
@@ -34,6 +36,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       TextEditingController();
 
   bool _isSubmitting = false;
+  bool _isBiometricChecking = true;
+  bool _isBiometricSubmitting = false;
+  bool _canUseBiometricLogin = false;
   bool _termsAccepted = false;
   bool _privacyAccepted = false;
   bool _termsViewed = false;
@@ -41,6 +46,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   bool get _canCreateAccount =>
       _termsAccepted && _privacyAccepted && _termsViewed && _privacyViewed;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadBiometricLoginState();
+    });
+  }
 
   @override
   void dispose() {
@@ -77,6 +90,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         termsAccepted: true,
         privacyAccepted: true,
       ),
+      offerBiometrics: false,
     );
   }
 
@@ -94,11 +108,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         email: email,
         password: password,
       ),
+      offerBiometrics: true,
     );
   }
 
   Future<void> _authenticate({
     required Future<AuthSessionData> Function() action,
+    required bool offerBiometrics,
   }) async {
     setState(() {
       _isSubmitting = true;
@@ -127,6 +143,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         hasCv: hasCv,
       );
 
+      if (!mounted) return;
+
+      if (offerBiometrics) {
+        await _offerBiometricEnrollment(sessionData.userId);
+      }
       if (!mounted) return;
 
       final nextScreen = hasCv
@@ -238,6 +259,34 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   label: Text(_isSubmitting ? 'Entrando...' : 'Entrar'),
                 ),
               ),
+              if (!_isBiometricChecking && _canUseBiometricLogin) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    key: const ValueKey('biometricLoginButton'),
+                    onPressed: (_isSubmitting || _isBiometricSubmitting)
+                        ? null
+                        : _loginWithBiometrics,
+                    style: OutlinedButton.styleFrom(backgroundColor: _paper),
+                    icon: _isBiometricSubmitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(_ink),
+                            ),
+                          )
+                        : const Icon(Icons.fingerprint_rounded),
+                    label: Text(
+                      _isBiometricSubmitting
+                          ? 'Validando biometria...'
+                          : 'Entrar com biometria',
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ],
@@ -387,6 +436,155 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         BoxShadow(color: _ink, offset: Offset(3, 3)),
       ],
     );
+  }
+
+  Future<void> _loadBiometricLoginState() async {
+    final userId = ref.read(sessionProvider).userId;
+    if (userId == null || userId.trim().isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isBiometricChecking = false;
+          _canUseBiometricLogin = false;
+        });
+      }
+      return;
+    }
+
+    final canUse = await ref
+        .read(biometricLoginCoordinatorProvider)
+        .canUseBiometricLogin(userId);
+
+    if (!mounted) return;
+    setState(() {
+      _isBiometricChecking = false;
+      _canUseBiometricLogin = canUse;
+    });
+  }
+
+  Future<void> _offerBiometricEnrollment(String userId) async {
+    final coordinator = ref.read(biometricLoginCoordinatorProvider);
+    final shouldPrompt = await coordinator.shouldPromptAfterPasswordLogin(
+      userId,
+    );
+    if (!shouldPrompt || !context.mounted) {
+      return;
+    }
+
+    final accepted = await _showBiometricEnrollmentDialog();
+
+    final preferences = ref.read(biometricPreferenceStoreProvider);
+    if (accepted == true) {
+      await preferences.enableForUser(userId);
+      if (mounted) {
+        _showMessage('Biometria ativada com sucesso.');
+      }
+      return;
+    }
+
+    await preferences.declineForUser(userId);
+    if (mounted) {
+      _showMessage('Tudo bem. Voce pode entrar com email e senha.');
+    }
+  }
+
+  Future<bool?> _showBiometricEnrollmentDialog() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Usar biometria?'),
+          content: const Text(
+            'Seu dispositivo permite entrar com biometria. Deseja ativar para os proximos acessos?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Agora nao'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.fingerprint_rounded),
+              label: const Text('Ativar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _loginWithBiometrics() async {
+    setState(() {
+      _isBiometricSubmitting = true;
+    });
+
+    try {
+      final coordinator = ref.read(biometricLoginCoordinatorProvider);
+      final result = await coordinator.unlock(
+        reason: 'Use sua biometria para entrar no Agente de Emprego.',
+      );
+
+      if (!mounted) return;
+      switch (result) {
+        case BiometricUnlockResult.unavailable:
+          _showMessage('Biometria indisponivel neste dispositivo.');
+          return;
+        case BiometricUnlockResult.cancelled:
+          _showMessage('Biometria cancelada. Entre com email e senha.');
+          return;
+        case BiometricUnlockResult.missingToken:
+          _showMessage('Sessao expirada. Entre com email e senha.');
+          return;
+        case BiometricUnlockResult.success:
+          break;
+      }
+
+      final authToken =
+          await ref.read(sessionProvider.notifier).readAccessToken();
+      if (authToken == null || authToken.trim().isEmpty) {
+        _showMessage('Sessao expirada. Entre com email e senha.');
+        return;
+      }
+
+      final currentUser = await _repository.getCurrentUser(authToken);
+      ref.read(consentProvider.notifier).applyFromUser(
+        termsVersion: currentUser.termsVersion,
+        privacyVersion: currentUser.privacyVersion,
+      );
+
+      var hasCv = false;
+      try {
+        final status = await _repository.getUserStatus(authToken);
+        hasCv = status.hasCv && status.hasEmbeddings;
+      } on ConsentOutdatedException catch (error) {
+        ref.read(consentProvider.notifier).applyException(error);
+      }
+
+      await ref.read(sessionProvider.notifier).saveSession(
+        authToken: authToken,
+        userId: currentUser.userId,
+        email: currentUser.email,
+        displayName: currentUser.displayName,
+        hasCv: hasCv,
+      );
+
+      if (!mounted) return;
+      final nextScreen = hasCv
+          ? const HomeScreen()
+          : const UserRegistrationScreen();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => nextScreen),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ref.read(consentProvider.notifier).applyIfOutdated(e);
+      _showMessage(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBiometricSubmitting = false;
+        });
+      }
+    }
   }
 
   void _showMessage(String message) {

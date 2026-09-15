@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:agente_emprego/data/api_config.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
+import 'package:agente_emprego/data/services/biometric_preference_store.dart';
 import 'package:agente_emprego/data/token_store.dart';
 import 'package:agente_emprego/presentation/providers/session_provider.dart';
 import 'package:dio/dio.dart';
@@ -86,6 +87,43 @@ void main() {
     expect(sessionBox.get('email'), isNull);
     expect(chatBox.isEmpty, isTrue);
     expect(sessionBox.get(SessionStorageKeys.installMarker), '1');
+  });
+
+  test('lock guarda JWT no cofre e trava a sessao sem plaintext', () async {
+    final store = bindTestTokenStore();
+    final notifier = SessionNotifier(sessionBox, store);
+    const token = 'jwt-locked-in-vault';
+
+    await notifier.saveSession(
+      authToken: token,
+      userId: 'user_1',
+      email: 'user@example.com',
+      displayName: 'Usuario Teste',
+      hasCv: true,
+    );
+    await notifier.lock();
+
+    expect(await store.readAccessToken(), token);
+    expect(notifier.state.hasSession, isFalse);
+    expect(notifier.state.isLocked, isTrue);
+    expect(notifier.state.userId, 'user_1');
+    expect(sessionBox.get(SessionNotifier.sessionLockedKey), 'true');
+    expect(hiveHoldsPlaintextToken(sessionBox, token), isFalse);
+  });
+
+  test('cold start com biometria ativada nao abre sessao automatica', () async {
+    final store = MemoryTokenStore(accessToken: 'jwt-cold-start');
+    await sessionBox.put(SessionStorageKeys.installMarker, '1');
+    await sessionBox.put('user_id', 'user_1');
+    await BiometricPreferenceStore(sessionBox).enableForUser('user_1');
+
+    final notifier = SessionNotifier(sessionBox, store);
+
+    expect(await store.readAccessToken(), 'jwt-cold-start');
+    expect(notifier.state.hasSession, isFalse);
+    expect(notifier.state.isLocked, isTrue);
+    expect(notifier.state.userId, 'user_1');
+    expect(hiveHoldsPlaintextToken(sessionBox, 'jwt-cold-start'), isFalse);
   });
 
   test('reinstall / sessao limpa descarta token residual do cofre', () async {
