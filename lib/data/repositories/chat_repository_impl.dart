@@ -10,6 +10,12 @@ import '../token_store.dart';
 class ChatRepositoryImpl {
   static String get apiBaseUrl => ApiConfig.apiBaseUrl;
 
+  /// Live `/processar` often takes ~25–30s (LLM + PDF). Scoped to this call
+  /// so login/status/upload keep the shorter Dio default.
+  static const Duration processarReceiveTimeout = Duration(seconds: 120);
+  static const Duration processarSendTimeout = Duration(seconds: 60);
+  static const Duration processarConnectTimeout = Duration(seconds: 30);
+
   final Box<MessageModel> _box;
   final TokenStore _tokenStore;
   final String? _userId;
@@ -36,7 +42,9 @@ class ChatRepositoryImpl {
       final response = await _dio.post(
         '/processar',
         data: {'texto': text},
-        options: Options(headers: await _buildAuthHeaders()),
+        options: processarRequestOptions(
+          headers: await _buildAuthHeaders(),
+        ),
       );
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -89,6 +97,17 @@ class ChatRepositoryImpl {
     }
 
     return trimmed;
+  }
+
+  static Options processarRequestOptions({
+    required Map<String, String> headers,
+  }) {
+    return Options(
+      headers: headers,
+      receiveTimeout: processarReceiveTimeout,
+      sendTimeout: processarSendTimeout,
+      connectTimeout: processarConnectTimeout,
+    );
   }
 
   Future<Map<String, String>> _buildAuthHeaders() async {

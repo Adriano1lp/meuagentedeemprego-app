@@ -1,3 +1,5 @@
+import 'package:agente_emprego/data/analyze_gate.dart';
+import 'package:agente_emprego/data/repositories/auth_repository_impl.dart';
 import 'package:agente_emprego/data/repositories/chat_repository_impl.dart';
 import 'package:agente_emprego/domain/entities/chat_message.dart';
 import 'package:agente_emprego/presentation/providers/chat_provider.dart';
@@ -59,6 +61,57 @@ Contratacao PJ hibrido com beneficios e bonus por performance.
       expect(repository.sendMessageCalls, 1);
       expect(notifier.state.isLoading, isFalse);
       expect(notifier.state.messages.length, 2);
+      expect(notifier.state.errorMessage, isNull);
+    });
+
+    test('nao chama /processar quando GET /users/me/status nao tem embeddings',
+        () async {
+      final repository = _FakeChatRepository();
+      final notifier = ChatNotifier(
+        repository,
+        fetchUserStatus: () async => const UserStatusData(
+          hasCv: true,
+          hasEmbeddings: false,
+        ),
+      );
+
+      final wasAccepted = await notifier.sendMessage('''
+Vaga para Analista de Dados Senior.
+Responsabilidades: construir dashboards, analisar indicadores e apoiar decisoes de negocio.
+Requisitos: experiencia com SQL, Power BI, Python e comunicacao com areas de produto.
+Contratacao PJ hibrido com beneficios e bonus por performance.
+''');
+
+      expect(wasAccepted, isFalse);
+      expect(repository.sendMessageCalls, 0);
+      expect(notifier.state.canAnalyze, isFalse);
+      expect(notifier.state.embeddingsMissing, isTrue);
+      expect(
+        notifier.state.errorMessage,
+        AnalyzeGate.missingEmbeddingsMessage,
+      );
+    });
+
+    test('chama /processar depois que status confirma embeddings', () async {
+      final repository = _FakeChatRepository();
+      final notifier = ChatNotifier(
+        repository,
+        fetchUserStatus: () async => const UserStatusData(
+          hasCv: true,
+          hasEmbeddings: true,
+        ),
+      );
+
+      final wasAccepted = await notifier.sendMessage('''
+Vaga para Analista de Dados Senior.
+Responsabilidades: construir dashboards, analisar indicadores e apoiar decisoes de negocio.
+Requisitos: experiencia com SQL, Power BI, Python e comunicacao com areas de produto.
+Contratacao PJ hibrido com beneficios e bonus por performance.
+''');
+
+      expect(wasAccepted, isTrue);
+      expect(repository.sendMessageCalls, 1);
+      expect(notifier.state.canAnalyze, isTrue);
       expect(notifier.state.errorMessage, isNull);
     });
   });

@@ -7,6 +7,11 @@ String extractApiErrorMessage(
   required String fallback,
   String? apiBaseUrl,
 }) {
+  if (error.type == DioExceptionType.receiveTimeout ||
+      error.type == DioExceptionType.sendTimeout) {
+    return 'A analise demorou demais. Tente novamente.';
+  }
+
   if (error.type == DioExceptionType.connectionTimeout) {
     return 'Tempo de conexao esgotado';
   }
@@ -18,25 +23,54 @@ String extractApiErrorMessage(
     return 'Nao foi possivel alcancar a API.';
   }
 
-  final data = error.response?.data;
+  final status = error.response?.statusCode;
+  final detail = extractFastApiDetail(error.response?.data);
+  if (detail != null) {
+    return status != null ? 'HTTP $status: $detail' : detail;
+  }
+
+  if (status == 404) {
+    return 'HTTP 404: Endpoint nao encontrado';
+  }
+  if (status != null) {
+    return 'HTTP $status: $fallback';
+  }
+
+  return fallback;
+}
+
+/// FastAPI-style `detail`: string, `{message}`, or validation list.
+String? extractFastApiDetail(dynamic data) {
   if (data is Map) {
     final detail = data['detail'];
     if (detail is String && detail.trim().isNotEmpty) {
       return detail.trim();
     }
-    if (detail is Map && detail['message'] is String) {
-      final message = (detail['message'] as String).trim();
-      if (message.isNotEmpty) {
-        return message;
+    if (detail is Map) {
+      final message = detail['message'];
+      if (message is String && message.trim().isNotEmpty) {
+        return message.trim();
+      }
+    }
+    if (detail is List && detail.isNotEmpty) {
+      final first = detail.first;
+      if (first is Map) {
+        final message = first['msg'] ?? first['message'];
+        if (message is String && message.trim().isNotEmpty) {
+          return message.trim();
+        }
+      }
+      if (first is String && first.trim().isNotEmpty) {
+        return first.trim();
       }
     }
   }
 
-  if (error.response?.statusCode == 404) {
-    return 'Endpoint nao encontrado';
+  if (data is String && data.trim().isNotEmpty) {
+    return data.trim();
   }
 
-  return fallback;
+  return null;
 }
 
 Never rethrowApiError(

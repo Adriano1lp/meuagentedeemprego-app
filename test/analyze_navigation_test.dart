@@ -1,11 +1,13 @@
 import 'dart:io';
 
+import 'package:agente_emprego/data/analyze_gate.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
+import 'package:agente_emprego/data/repositories/auth_repository_impl.dart';
 import 'package:agente_emprego/data/token_store.dart';
 import 'package:agente_emprego/presentation/providers/session_provider.dart';
+import 'package:agente_emprego/presentation/screens/chat_screen.dart';
 import 'package:agente_emprego/presentation/screens/home_screen.dart';
-import 'package:agente_emprego/presentation/screens/job_search_screen.dart';
-import 'package:agente_emprego/presentation/widgets/app_drawer.dart';
+import 'package:agente_emprego/presentation/screens/user_registration_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
@@ -16,13 +18,12 @@ void main() {
   late MemoryTokenStore tokenStore;
 
   setUpAll(() async {
-    final tempDir = await Directory.systemTemp.createTemp('drawer_test');
+    final tempDir = await Directory.systemTemp.createTemp('analyze_nav_test');
     Hive.init(tempDir.path);
 
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(MessageModelAdapter());
     }
-
     if (!Hive.isBoxOpen('chat_history')) {
       await Hive.openBox<MessageModel>('chat_history');
     }
@@ -32,7 +33,7 @@ void main() {
   });
 
   setUp(() async {
-    tokenStore = bindTestTokenStore();
+    tokenStore = bindTestTokenStore(accessToken: 'token');
     await Hive.box<MessageModel>('chat_history').clear();
     final sessionBox = Hive.box<String>('app_session');
     await sessionBox.clear();
@@ -45,49 +46,26 @@ void main() {
     );
   });
 
-  tearDownAll(() async {
-    await Hive.box<MessageModel>('chat_history').close();
-    await Hive.box<String>('app_session').close();
-  });
-
-  testWidgets('menu nao mostra API atual e mostra analise de vaga', (
+  testWidgets('Home forca upload de CV quando nao ha embeddings', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
       testProviderScope(
         tokenStore: tokenStore,
-        child: const MaterialApp(
-          home: AppDrawer(),
-        ),
+        userStatus: const UserStatusData(hasCv: true, hasEmbeddings: false),
+        child: const MaterialApp(home: HomeScreen()),
       ),
     );
 
-    expect(find.text('API atual'), findsNothing);
-    expect(find.text('http://127.0.0.1:8000'), findsNothing);
-    expect(find.text('Analise de vaga'), findsOneWidget);
-    expect(find.text('Sair'), findsOneWidget);
-  });
+    await tester.tap(find.text('Analise de vaga'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
-  testWidgets('Home no drawer abre HomeScreen e nao ChatScreen', (
-    WidgetTester tester,
-  ) async {
-    await tester.pumpWidget(
-      testProviderScope(
-        tokenStore: tokenStore,
-        child: const MaterialApp(
-          home: JobSearchScreen(),
-        ),
-      ),
-    );
+    expect(find.byType(UserRegistrationScreen), findsOneWidget);
+    expect(find.byType(ChatScreen), findsNothing);
+    expect(find.textContaining('curriculo'), findsWidgets);
+    expect(find.text(AnalyzeGate.missingEmbeddingsMessage), findsWidgets);
 
-    await tester.tap(find.byIcon(Icons.menu));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Home'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(HomeScreen), findsOneWidget);
-    expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Analise da Vaga'), findsNothing);
+    await tester.pump(const Duration(seconds: 5));
   });
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../navigation/analyze_navigation.dart';
 import '../providers/session_provider.dart';
 import '../widgets/app_drawer.dart';
-import 'chat_screen.dart';
 import 'history_screen.dart';
 import 'job_search_screen.dart';
 import 'user_registration_screen.dart';
@@ -84,7 +84,7 @@ class HomeScreen extends ConsumerWidget {
                 icon: Icons.analytics_outlined,
                 title: 'Analise de vaga',
                 subtitle: 'Cole uma descricao de vaga e receba aderencia, gaps e PDF.',
-                onTap: () => _open(context, const ChatScreen()),
+                onTap: () => openAnaliseVaga(context, ref),
               ),
               _ActionTile(
                 color: _blue,
