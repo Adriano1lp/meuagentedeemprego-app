@@ -37,7 +37,7 @@ class BiometricLoginCoordinator {
       return false;
     }
 
-    final hasToken = await _hasVaultToken();
+    final hasToken = await _tokenStore.hasAccessToken();
     if (!hasToken) {
       return false;
     }
@@ -58,16 +58,11 @@ class BiometricLoginCoordinator {
       return BiometricUnlockResult.cancelled;
     }
 
-    final hasToken = await _hasVaultToken();
+    final hasToken = await _tokenStore.hasAccessToken();
     if (!hasToken) {
       return BiometricUnlockResult.missingToken;
     }
 
     return BiometricUnlockResult.success;
-  }
-
-  Future<bool> _hasVaultToken() async {
-    final token = await _tokenStore.readAccessToken();
-    return token != null && token.trim().isNotEmpty;
   }
 }

@@ -106,6 +106,19 @@ void main() {
 
     expect(result, BiometricUnlockResult.missingToken);
   });
+
+  test('cofre com JWT mas leituras suprimidas ainda permite desbloquear', () async {
+    authService.canUse = true;
+    authService.authenticated = true;
+    await tokenStore.writeAccessToken('jwt-in-vault');
+    tokenStore.suppressReads();
+    await preferences.enableForUser('user_1');
+
+    expect(await tokenStore.readAccessToken(), isNull);
+    expect(await coordinator.canUseBiometricLogin('user_1'), isTrue);
+    expect(await coordinator.unlock(reason: 'Entrar'), BiometricUnlockResult.success);
+    expect(await tokenStore.readAccessToken(), isNull);
+  });
 }
 
 class _FakeBiometricAuthService implements BiometricAuthService {

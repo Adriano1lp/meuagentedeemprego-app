@@ -539,7 +539,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       }
 
       final authToken =
-          await ref.read(sessionProvider.notifier).readAccessToken();
+          await ref.read(sessionProvider.notifier).revealVaultTokenAfterBiometric();
       if (authToken == null || authToken.trim().isEmpty) {
         _showMessage('Sessao expirada. Entre com email e senha.');
         return;

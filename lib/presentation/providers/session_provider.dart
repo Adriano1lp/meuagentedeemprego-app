@@ -71,6 +71,13 @@ class SessionNotifier extends StateNotifier<SessionState> {
 
   Future<String?> readAccessToken() => _tokenStore.readAccessToken();
 
+  /// After a successful OS biometric prompt: allow reading the JWT that
+  /// already lives in the vault. Does not mint a new token.
+  Future<String?> revealVaultTokenAfterBiometric() async {
+    _tokenStore.allowReads();
+    return _tokenStore.readAccessToken();
+  }
+
   Future<void> saveSession({
     required String authToken,
     required String userId,
@@ -113,6 +120,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
   Future<void> lock() async {
     await Hive.box<MessageModel>('chat_history').clear();
     await _box.put(sessionLockedKey, 'true');
+    _tokenStore.suppressReads();
     state = state.copyWith(hasSession: false, isLocked: true);
   }
 
@@ -131,6 +139,9 @@ class SessionNotifier extends StateNotifier<SessionState> {
   static SessionState _initialState(Box<String> box, TokenStore tokenStore) {
     final userId = box.get(_userIdKey);
     final locked = _shouldLockOnStart(box, userId);
+    if (locked) {
+      tokenStore.suppressReads();
+    }
     return SessionState(
       hasSession: !locked && _hasStoredToken(tokenStore.cachedAccessToken),
       isLocked: locked,

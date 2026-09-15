@@ -12,9 +12,19 @@ abstract class TokenStore {
 
   Future<String?> readRefreshToken();
 
+  /// Existence check for biometric unlock. Does **not** expose the JWT to
+  /// callers or Dio while reads are suppressed.
+  Future<bool> hasAccessToken();
+
   Future<void> writeAccessToken(String accessToken, {String? refreshToken});
 
   Future<void> clearTokens();
+
+  /// Hide JWT from API/session reads while the UI is biometric-locked.
+  /// The ciphertext stays in the OS vault.
+  void suppressReads();
+
+  void allowReads();
 }
 
 TokenStore? _activeTokenStore;
@@ -93,21 +103,30 @@ class MemoryTokenStore implements TokenStore {
 
   String? _accessToken;
   String? _refreshToken;
+  bool _readsSuppressed = false;
 
   @override
-  String? get cachedAccessToken => _accessToken;
+  String? get cachedAccessToken => _readsSuppressed ? null : _accessToken;
 
   @override
   Future<void> preload() async {}
 
   @override
-  Future<String?> readAccessToken() async => _accessToken;
+  Future<String?> readAccessToken() async =>
+      _readsSuppressed ? null : _accessToken;
 
   @override
-  Future<String?> readRefreshToken() async => _refreshToken;
+  Future<String?> readRefreshToken() async =>
+      _readsSuppressed ? null : _refreshToken;
+
+  @override
+  Future<bool> hasAccessToken() async {
+    return _accessToken != null && _accessToken!.trim().isNotEmpty;
+  }
 
   @override
   Future<void> writeAccessToken(String accessToken, {String? refreshToken}) async {
+    _readsSuppressed = false;
     _accessToken = accessToken;
     if (refreshToken != null) {
       _refreshToken = refreshToken;
@@ -116,8 +135,19 @@ class MemoryTokenStore implements TokenStore {
 
   @override
   Future<void> clearTokens() async {
+    _readsSuppressed = false;
     _accessToken = null;
     _refreshToken = null;
+  }
+
+  @override
+  void suppressReads() {
+    _readsSuppressed = true;
+  }
+
+  @override
+  void allowReads() {
+    _readsSuppressed = false;
   }
 }
 
@@ -138,12 +168,17 @@ class SecureTokenStore implements TokenStore {
   final FlutterSecureStorage _storage;
   String? _cachedAccessToken;
   String? _cachedRefreshToken;
+  bool _readsSuppressed = false;
 
   @override
-  String? get cachedAccessToken => _cachedAccessToken;
+  String? get cachedAccessToken =>
+      _readsSuppressed ? null : _cachedAccessToken;
 
   @override
   Future<void> preload() async {
+    if (_readsSuppressed) {
+      return;
+    }
     _cachedAccessToken = _normalize(
       await _storage.read(key: SessionStorageKeys.accessToken),
     );
@@ -154,6 +189,9 @@ class SecureTokenStore implements TokenStore {
 
   @override
   Future<String?> readAccessToken() async {
+    if (_readsSuppressed) {
+      return null;
+    }
     _cachedAccessToken = _normalize(
       await _storage.read(key: SessionStorageKeys.accessToken),
     );
@@ -162,6 +200,9 @@ class SecureTokenStore implements TokenStore {
 
   @override
   Future<String?> readRefreshToken() async {
+    if (_readsSuppressed) {
+      return null;
+    }
     _cachedRefreshToken = _normalize(
       await _storage.read(key: SessionStorageKeys.refreshToken),
     );
@@ -169,7 +210,21 @@ class SecureTokenStore implements TokenStore {
   }
 
   @override
+  Future<bool> hasAccessToken() async {
+    if (!_readsSuppressed &&
+        _cachedAccessToken != null &&
+        _cachedAccessToken!.trim().isNotEmpty) {
+      return true;
+    }
+    final stored = _normalize(
+      await _storage.read(key: SessionStorageKeys.accessToken),
+    );
+    return stored != null;
+  }
+
+  @override
   Future<void> writeAccessToken(String accessToken, {String? refreshToken}) async {
+    _readsSuppressed = false;
     final normalized = accessToken.trim();
     await _storage.write(
       key: SessionStorageKeys.accessToken,
@@ -194,10 +249,23 @@ class SecureTokenStore implements TokenStore {
 
   @override
   Future<void> clearTokens() async {
+    _readsSuppressed = false;
     await _storage.delete(key: SessionStorageKeys.accessToken);
     await _storage.delete(key: SessionStorageKeys.refreshToken);
     _cachedAccessToken = null;
     _cachedRefreshToken = null;
+  }
+
+  @override
+  void suppressReads() {
+    _readsSuppressed = true;
+    _cachedAccessToken = null;
+    _cachedRefreshToken = null;
+  }
+
+  @override
+  void allowReads() {
+    _readsSuppressed = false;
   }
 
   static String? _normalize(String? value) {
