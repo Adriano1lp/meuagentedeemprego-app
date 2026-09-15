@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:agente_emprego/data/api_config.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
+import 'package:agente_emprego/data/services/biometric_preference_store.dart';
 import 'package:agente_emprego/data/token_store.dart';
 import 'package:agente_emprego/presentation/providers/session_provider.dart';
 import 'package:dio/dio.dart';
@@ -88,6 +89,57 @@ void main() {
     expect(sessionBox.get(SessionStorageKeys.installMarker), '1');
   });
 
+  test('lock guarda JWT no cofre e trava a sessao sem plaintext', () async {
+    final store = bindTestTokenStore();
+    final notifier = SessionNotifier(sessionBox, store);
+    const token = 'jwt-locked-in-vault';
+
+    await notifier.saveSession(
+      authToken: token,
+      userId: 'user_1',
+      email: 'user@example.com',
+      displayName: 'Usuario Teste',
+      hasCv: true,
+    );
+    await notifier.lock();
+
+    expect(await store.hasAccessToken(), isTrue);
+    expect(await store.readAccessToken(), isNull);
+    expect(store.cachedAccessToken, isNull);
+    expect(notifier.state.hasSession, isFalse);
+    expect(notifier.state.isLocked, isTrue);
+    expect(notifier.state.userId, 'user_1');
+    expect(sessionBox.get(SessionNotifier.sessionLockedKey), 'true');
+    expect(hiveHoldsPlaintextToken(sessionBox, token), isFalse);
+    expect(
+      sessionBox.keys.where((key) => key.toString().contains('biometric')),
+      isEmpty,
+    );
+
+    final revealed = await notifier.revealVaultTokenAfterBiometric();
+    expect(revealed, token);
+    expect(await store.readAccessToken(), token);
+  });
+
+  test('cold start com biometria ativada nao abre sessao automatica', () async {
+    final store = MemoryTokenStore(accessToken: 'jwt-cold-start');
+    await sessionBox.put(SessionStorageKeys.installMarker, '1');
+    await sessionBox.put('user_id', 'user_1');
+    await BiometricPreferenceStore(sessionBox).enableForUser('user_1');
+
+    final notifier = SessionNotifier(sessionBox, store);
+
+    expect(await store.hasAccessToken(), isTrue);
+    expect(await store.readAccessToken(), isNull);
+    expect(store.cachedAccessToken, isNull);
+    expect(notifier.state.hasSession, isFalse);
+    expect(notifier.state.isLocked, isTrue);
+    expect(notifier.state.userId, 'user_1');
+    expect(hiveHoldsPlaintextToken(sessionBox, 'jwt-cold-start'), isFalse);
+    expect(sessionBox.get('biometric_preference_user_1'), 'enabled');
+    expect(hiveHoldsPlaintextToken(sessionBox, 'jwt-cold-start'), isFalse);
+  });
+
   test('reinstall / sessao limpa descarta token residual do cofre', () async {
     final leftover = MemoryTokenStore(accessToken: 'leftover-from-old-install');
     expect(sessionBox.get(SessionStorageKeys.installMarker), isNull);
@@ -137,6 +189,42 @@ void main() {
     expect(
       await resolveBearerHeaders(store, fallbackToken: 'ignored-fallback'),
       {'Authorization': 'Bearer vault-token'},
+    );
+  });
+
+  test('sessao travada nao envia JWT no Dio e nao grava senha no Hive', () async {
+    final store = bindTestTokenStore();
+    final notifier = SessionNotifier(sessionBox, store);
+    const token = 'jwt-must-not-leave-vault';
+
+    await notifier.saveSession(
+      authToken: token,
+      userId: 'user_1',
+      email: 'user@example.com',
+      displayName: 'Usuario Teste',
+      hasCv: true,
+    );
+    await BiometricPreferenceStore(sessionBox).enableForUser('user_1');
+    await notifier.lock();
+
+    late RequestOptions captured;
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+    dio.interceptors.add(SecureAuthInterceptor(store));
+    dio.httpClientAdapter = _CaptureAdapter((options) {
+      captured = options;
+    });
+
+    await dio.get('/secure');
+
+    expect(captured.headers['Authorization'], isNull);
+    expect(await store.hasAccessToken(), isTrue);
+    expect(await store.readAccessToken(), isNull);
+    expect(hiveHoldsPlaintextToken(sessionBox, token), isFalse);
+    expect(sessionBox.get('biometric_preference_user_1'), 'enabled');
+    expect(sessionBox.get('password'), isNull);
+    expect(
+      sessionBox.values.any((value) => value.contains(token)),
+      isFalse,
     );
   });
 }

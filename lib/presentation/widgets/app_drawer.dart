@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/services/biometric_preference_store.dart';
 import '../navigation/analyze_navigation.dart';
+import '../providers/biometric_providers.dart';
 import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import '../screens/auth_screen.dart';
@@ -27,6 +29,10 @@ class AppDrawer extends ConsumerWidget {
     final userId = session.userId;
     final displayName = session.displayName;
     final email = session.email;
+
+    final biometricStatus = userId == null
+        ? BiometricPreferenceStatus.unknown
+        : ref.watch(biometricPreferenceStoreProvider).statusForUser(userId);
 
     return Drawer(
       child: Container(
@@ -198,6 +204,41 @@ class AppDrawer extends ConsumerWidget {
                         );
                       },
                     ),
+                    if (userId != null &&
+                        biometricStatus == BiometricPreferenceStatus.enabled)
+                      const SizedBox(height: 10),
+                    if (userId != null &&
+                        biometricStatus == BiometricPreferenceStatus.enabled)
+                      _DrawerTile(
+                        color: _green,
+                        icon: Icons.fingerprint_rounded,
+                        title: 'Desativar biometria',
+                        subtitle: 'Remover acesso biometrico deste aparelho',
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await ref
+                              .read(biometricPreferenceStoreProvider)
+                              .disableForUser(userId);
+                          await ref.read(sessionProvider.notifier).clear();
+                          ref.read(consentProvider.notifier).clear();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Biometria desativada. Entre com email e senha.',
+                                ),
+                              ),
+                            );
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (context) => const AuthScreen(),
+                            ),
+                            (route) => false,
+                          );
+                        },
+                      ),
                   ],
                 ),
               ),
@@ -208,7 +249,15 @@ class AppDrawer extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   onPressed: () async {
                     Navigator.pop(context);
-                    await ref.read(sessionProvider.notifier).clear();
+                    final biometricEnabled = ref
+                            .read(biometricPreferenceStoreProvider)
+                            .statusForUser(userId) ==
+                        BiometricPreferenceStatus.enabled;
+                    if (biometricEnabled) {
+                      await ref.read(sessionProvider.notifier).lock();
+                    } else {
+                      await ref.read(sessionProvider.notifier).clear();
+                    }
                     ref.read(consentProvider.notifier).clear();
                     if (!context.mounted) return;
                     Navigator.of(context).pushAndRemoveUntil(
