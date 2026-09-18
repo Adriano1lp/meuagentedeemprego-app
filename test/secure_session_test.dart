@@ -101,6 +101,14 @@ void main() {
       displayName: 'Usuario Teste',
       hasCv: true,
     );
+    await chatBox.add(
+      MessageModel()
+        ..id = 'kept-after-lock'
+        ..text = 'analise anterior'
+        ..isUser = false
+        ..pdfUrl = null
+        ..timestamp = DateTime(2026, 9, 1),
+    );
     await notifier.lock();
 
     expect(await store.hasAccessToken(), isTrue);
@@ -110,6 +118,8 @@ void main() {
     expect(notifier.state.isLocked, isTrue);
     expect(notifier.state.userId, 'user_1');
     expect(sessionBox.get(SessionNotifier.sessionLockedKey), 'true');
+    expect(chatBox.length, 1);
+    expect(chatBox.values.first.text, 'analise anterior');
     expect(hiveHoldsPlaintextToken(sessionBox, token), isFalse);
     expect(
       sessionBox.keys.where((key) => key.toString().contains('biometric')),
