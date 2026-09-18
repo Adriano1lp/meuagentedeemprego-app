@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:agente_emprego/data/history_errors.dart';
 import 'package:agente_emprego/data/models/gap_history_item.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
 import 'package:agente_emprego/data/token_store.dart';
@@ -98,7 +99,7 @@ void main() {
     expect(find.text('Nenhum retorno salvo ainda.'), findsOneWidget);
   });
 
-  testWidgets('mostra erro e retry quando a API falha sem fallback', (
+  testWidgets('mostra erro seguro sem path interno quando a API falha', (
     tester,
   ) async {
     var calls = 0;
@@ -108,7 +109,10 @@ void main() {
         overrides: [
           gapHistoryFetcherProvider.overrideWithValue(() async {
             calls += 1;
-            throw Exception('Falha ao carregar o historico');
+            throw Exception(
+              'HTTP 500: File "/app/main.py" GET /users/me/gap-history '
+              'https://meu-agente-de-emprego.onrender.com Bearer jwt-abc',
+            );
           }),
         ],
         child: const MaterialApp(home: HistoryScreen()),
@@ -118,7 +122,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nao foi possivel carregar o historico.'), findsOneWidget);
-    expect(find.text('Falha ao carregar o historico'), findsOneWidget);
+    expect(find.text(historyLoadFailedMessage), findsOneWidget);
+    expect(find.textContaining('/users/me/gap-history'), findsNothing);
+    expect(find.textContaining('onrender.com'), findsNothing);
+    expect(find.textContaining('Bearer'), findsNothing);
+    expect(find.textContaining('jwt-abc'), findsNothing);
+    expect(find.textContaining('main.py'), findsNothing);
 
     await tester.tap(find.text('Tentar novamente'));
     await tester.pumpAndSettle();

@@ -3,12 +3,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:agente_emprego/data/consent_outdated.dart';
+import 'package:agente_emprego/data/history_errors.dart';
 import 'package:agente_emprego/data/legal_versions.dart';
 import 'package:agente_emprego/data/models/gap_history_item.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
 import 'package:agente_emprego/data/repositories/chat_repository_impl.dart';
 import 'package:agente_emprego/data/token_store.dart';
-import 'package:agente_emprego/domain/entities/chat_message.dart';
 import 'package:agente_emprego/presentation/providers/history_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -127,8 +127,37 @@ void main() {
       expect(captured.path, ChatRepositoryImpl.gapHistoryPath);
       expect(captured.queryParameters['limit'], 50);
       expect(captured.headers['Authorization'], 'Bearer jwt-history-secret');
+      expect(captured.headers['X-User-Id'], isNull);
+      expect(captured.headers['x-user-id'], isNull);
       expect(items, hasLength(1));
       expect(items.single.jobTitle, 'Analista de Dados');
+    });
+
+    test('nao envia X-User-Id mesmo com userId de outro usuario no client', () async {
+      final store = MemoryTokenStore(accessToken: 'jwt-owner');
+      late RequestOptions captured;
+      final dio = Dio(
+        BaseOptions(
+          baseUrl: 'https://example.test',
+          headers: {'X-User-Id': 'victim-user'},
+        ),
+      );
+      dio.httpClientAdapter = _JsonAdapter(
+        onFetch: (options) => captured = options,
+        body: {'items': []},
+      );
+
+      await ChatRepositoryImpl(
+        chatBox,
+        tokenStore: store,
+        userId: 'victim-user',
+        dio: dio,
+      ).fetchGapHistory();
+
+      expect(captured.headers['Authorization'], 'Bearer jwt-owner');
+      expect(captured.headers['X-User-Id'], isNull);
+      expect(captured.headers['x-user-id'], isNull);
+      expect(captured.queryParameters.containsKey('user_id'), isFalse);
     });
 
     test('sem token nao chama a API', () async {
@@ -195,8 +224,37 @@ void main() {
         ).fetchGapHistory();
         fail('esperava Exception');
       } on Exception catch (error) {
-        expect(error.toString(), contains('HTTP 401'));
-        expect(error.toString(), contains('Nao autenticado'));
+        expect(error.toString(), contains(historySessionExpiredMessage));
+        expect(error.toString(), isNot(contains('jwt-should-not-leak')));
+        expect(error.toString(), isNot(contains('/users/me/gap-history')));
+        expect(error.toString(), isNot(contains('Nao autenticado')));
+        expect(historyErrorLeaksInternals(error.toString()), isFalse);
+      }
+    });
+
+    test('erro 500 nao vaza path interno nem URL da API', () async {
+      final store = MemoryTokenStore(accessToken: 'jwt-should-not-leak');
+      final dio = Dio(BaseOptions(baseUrl: 'https://meu-agente-de-emprego.onrender.com'));
+      dio.httpClientAdapter = _JsonAdapter(
+        onFetch: (_) {},
+        statusCode: 500,
+        body: {
+          'detail':
+              'File "/app/main.py", line 12, in read_gap_history GET /users/me/gap-history',
+        },
+      );
+
+      try {
+        await ChatRepositoryImpl(
+          chatBox,
+          tokenStore: store,
+          dio: dio,
+        ).fetchGapHistory();
+        fail('esperava Exception');
+      } on Exception catch (error) {
+        expect(error.toString(), contains(historyLoadFailedMessage));
+        expect(historyErrorLeaksInternals(error.toString()), isFalse);
+        expect(error.toString(), isNot(contains('onrender.com')));
         expect(error.toString(), isNot(contains('jwt-should-not-leak')));
       }
     });
@@ -213,14 +271,6 @@ void main() {
             createdAt: DateTime(2026, 9, 1, 12),
           ),
         ],
-        readLocal: () => [
-          ChatMessage(
-            id: 'local',
-            text: 'local nao deve aparecer',
-            isUser: false,
-            timestamp: DateTime(2026, 8, 1),
-          ),
-        ],
       );
 
       await notifier.refresh();
@@ -233,32 +283,19 @@ void main() {
       expect(notifier.state.items.single.text, contains('Dev Flutter'));
     });
 
-    test('cai no Hive local quando a API vem vazia', () async {
+    test('API vazia mostra vazio e nao mistura Hive de outro usuario', () async {
       final notifier = HistoryNotifier(
         fetchRemote: () async => const [],
-        readLocal: () => [
-          ChatMessage(
-            id: 'user',
-            text: 'vaga',
-            isUser: true,
-            timestamp: DateTime(2026, 9, 1, 10),
-          ),
-          ChatMessage(
-            id: 'assistant',
-            text: 'analise local',
-            isUser: false,
-            timestamp: DateTime(2026, 9, 1, 11),
-          ),
-        ],
       );
 
       await notifier.refresh();
 
-      expect(notifier.state.fromRemote, isFalse);
-      expect(notifier.state.items.map((item) => item.id), ['assistant']);
+      expect(notifier.state.fromRemote, isTrue);
+      expect(notifier.state.items, isEmpty);
+      expect(notifier.state.errorMessage, isNull);
     });
 
-    test('erro da API mostra estado claro e fallback local', () async {
+    test('erro da API mostra mensagem segura sem fallback local', () async {
       var consentCalled = false;
       final notifier = HistoryNotifier(
         fetchRemote: () async {
@@ -268,14 +305,6 @@ void main() {
             message: 'Termos desatualizados',
           );
         },
-        readLocal: () => [
-          ChatMessage(
-            id: 'local-fallback',
-            text: 'ainda no aparelho',
-            isUser: false,
-            timestamp: DateTime(2026, 9, 2),
-          ),
-        ],
         onConsentOutdated: (_) => consentCalled = true,
       );
 
@@ -283,7 +312,40 @@ void main() {
 
       expect(consentCalled, isTrue);
       expect(notifier.state.errorMessage, 'Termos desatualizados');
-      expect(notifier.state.items.single.id, 'local-fallback');
+      expect(notifier.state.items, isEmpty);
+    });
+
+    test('sanitiza traceback e path no estado de erro', () async {
+      final notifier = HistoryNotifier(
+        fetchRemote: () async {
+          throw Exception(
+            'HTTP 500: File "/app/main.py" GET /users/me/gap-history '
+            'https://meu-agente-de-emprego.onrender.com Bearer jwt-abc',
+          );
+        },
+      );
+
+      await notifier.refresh();
+
+      expect(notifier.state.errorMessage, historyLoadFailedMessage);
+      expect(historyErrorLeaksInternals(notifier.state.errorMessage!), isFalse);
+      expect(notifier.state.items, isEmpty);
+    });
+  });
+
+  group('safeHistoryErrorMessage', () {
+    test('nao devolve URL, path ou token', () {
+      final error = DioException(
+        requestOptions: RequestOptions(
+          path: '/users/me/gap-history',
+          headers: {'Authorization': 'Bearer jwt-secret'},
+        ),
+        type: DioExceptionType.connectionError,
+      );
+
+      final message = safeHistoryErrorMessage(error);
+      expect(message, historyLoadFailedMessage);
+      expect(historyErrorLeaksInternals(message), isFalse);
     });
   });
 }

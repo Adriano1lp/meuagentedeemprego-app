@@ -2,11 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 
 import '../../data/consent_outdated.dart';
+import '../../data/history_errors.dart';
 import '../../data/models/gap_history_item.dart';
 import '../../data/models/message_model.dart';
 import '../../data/repositories/chat_repository_impl.dart';
 import '../../domain/entities/chat_message.dart';
-import 'chat_provider.dart';
 import 'consent_provider.dart';
 import 'session_provider.dart';
 
@@ -14,11 +14,9 @@ typedef GapHistoryFetcher = Future<List<GapHistoryItem>> Function();
 
 final gapHistoryFetcherProvider = Provider<GapHistoryFetcher>((ref) {
   return () {
-    final userId = ref.read(sessionProvider).userId;
     return ChatRepositoryImpl(
       Hive.box<MessageModel>('chat_history'),
       tokenStore: ref.read(secureTokenStoreProvider),
-      userId: userId,
     ).fetchGapHistory();
   };
 });
@@ -27,7 +25,6 @@ final historyProvider =
     StateNotifierProvider.autoDispose<HistoryNotifier, HistoryState>((ref) {
       return HistoryNotifier(
         fetchRemote: () => ref.read(gapHistoryFetcherProvider)(),
-        readLocal: () => ref.read(chatProvider).messages,
         onConsentOutdated: (error) {
           ref.read(consentProvider.notifier).applyException(error);
         },
@@ -66,15 +63,12 @@ class HistoryState {
 class HistoryNotifier extends StateNotifier<HistoryState> {
   HistoryNotifier({
     required GapHistoryFetcher fetchRemote,
-    required List<ChatMessage> Function() readLocal,
     void Function(ConsentOutdatedException error)? onConsentOutdated,
   }) : _fetchRemote = fetchRemote,
-       _readLocal = readLocal,
        _onConsentOutdated = onConsentOutdated,
        super(const HistoryState());
 
   final GapHistoryFetcher _fetchRemote;
-  final List<ChatMessage> Function() _readLocal;
   final void Function(ConsentOutdatedException error)? _onConsentOutdated;
 
   Future<void> refresh() async {
@@ -82,32 +76,21 @@ class HistoryNotifier extends StateNotifier<HistoryState> {
 
     try {
       final remote = await _fetchRemote();
-      if (remote.isNotEmpty) {
-        state = HistoryState(
-          items: remote.map((item) => item.toChatMessage()).toList(),
-          isLoading: false,
-          fromRemote: true,
-        );
-        return;
-      }
-
-      state = HistoryState(items: _localAssistantMessages(), isLoading: false);
+      state = HistoryState(
+        items: remote.map((item) => item.toChatMessage()).toList(),
+        isLoading: false,
+        fromRemote: true,
+      );
     } catch (error) {
       final consentError = ConsentOutdatedException.fromError(error);
       if (consentError != null) {
         _onConsentOutdated?.call(consentError);
       }
       state = HistoryState(
-        items: _localAssistantMessages(),
+        items: const [],
         isLoading: false,
-        errorMessage: error.toString().replaceFirst('Exception: ', ''),
+        errorMessage: safeHistoryErrorMessage(error),
       );
     }
-  }
-
-  List<ChatMessage> _localAssistantMessages() {
-    final local = _readLocal().where((message) => !message.isUser).toList()
-      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    return local;
   }
 }
