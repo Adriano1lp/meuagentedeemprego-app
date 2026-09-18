@@ -144,7 +144,7 @@ class AppDrawer extends ConsumerWidget {
                       color: const Color(0xFF87D2FF),
                       icon: Icons.history,
                       title: 'Historico',
-                      subtitle: 'Mensagens salvas localmente',
+                      subtitle: 'Analises anteriores desta conta',
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -249,7 +249,8 @@ class AppDrawer extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   onPressed: () async {
                     Navigator.pop(context);
-                    final biometricEnabled = ref
+                    final biometricEnabled =
+                        ref
                             .read(biometricPreferenceStoreProvider)
                             .statusForUser(userId) ==
                         BiometricPreferenceStatus.enabled;

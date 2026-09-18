@@ -1,4 +1,5 @@
 import 'package:agente_emprego/data/analyze_gate.dart';
+import 'package:agente_emprego/data/models/gap_history_item.dart';
 import 'package:agente_emprego/data/repositories/auth_repository_impl.dart';
 import 'package:agente_emprego/data/repositories/chat_repository_impl.dart';
 import 'package:agente_emprego/domain/entities/chat_message.dart';
@@ -17,19 +18,22 @@ void main() {
       }
     });
 
-    test('aceita descricao de vaga com cargo requisitos e responsabilidades', () {
-      const text = '''
+    test(
+      'aceita descricao de vaga com cargo requisitos e responsabilidades',
+      () {
+        const text = '''
 Vaga para Desenvolvedor Flutter Pleno em empresa de tecnologia.
 Responsabilidades: desenvolver telas, integrar APIs REST e colaborar com o time de produto.
 Requisitos: experiencia com Flutter, Dart, Git, testes automatizados e consumo de APIs.
 Modelo de contratacao CLT remoto com beneficios.
 ''';
 
-      final result = JobDescriptionValidator.validate(text);
+        final result = JobDescriptionValidator.validate(text);
 
-      expect(result.isValid, isTrue);
-      expect(result.message, isNull);
-    });
+        expect(result.isValid, isTrue);
+        expect(result.message, isNull);
+      },
+    );
   });
 
   group('ChatNotifier', () {
@@ -43,7 +47,10 @@ Modelo de contratacao CLT remoto com beneficios.
       expect(repository.sendMessageCalls, 0);
       expect(notifier.state.isLoading, isFalse);
       expect(notifier.state.messages, isEmpty);
-      expect(notifier.state.errorMessage, JobDescriptionValidator.invalidMessage);
+      expect(
+        notifier.state.errorMessage,
+        JobDescriptionValidator.invalidMessage,
+      );
     });
 
     test('chama repository quando texto parece vaga', () async {
@@ -64,42 +71,40 @@ Contratacao PJ hibrido com beneficios e bonus por performance.
       expect(notifier.state.errorMessage, isNull);
     });
 
-    test('nao chama /processar quando GET /users/me/status nao tem embeddings',
-        () async {
-      final repository = _FakeChatRepository();
-      final notifier = ChatNotifier(
-        repository,
-        fetchUserStatus: () async => const UserStatusData(
-          hasCv: true,
-          hasEmbeddings: false,
-        ),
-      );
+    test(
+      'nao chama /processar quando GET /users/me/status nao tem embeddings',
+      () async {
+        final repository = _FakeChatRepository();
+        final notifier = ChatNotifier(
+          repository,
+          fetchUserStatus: () async =>
+              const UserStatusData(hasCv: true, hasEmbeddings: false),
+        );
 
-      final wasAccepted = await notifier.sendMessage('''
+        final wasAccepted = await notifier.sendMessage('''
 Vaga para Analista de Dados Senior.
 Responsabilidades: construir dashboards, analisar indicadores e apoiar decisoes de negocio.
 Requisitos: experiencia com SQL, Power BI, Python e comunicacao com areas de produto.
 Contratacao PJ hibrido com beneficios e bonus por performance.
 ''');
 
-      expect(wasAccepted, isFalse);
-      expect(repository.sendMessageCalls, 0);
-      expect(notifier.state.canAnalyze, isFalse);
-      expect(notifier.state.embeddingsMissing, isTrue);
-      expect(
-        notifier.state.errorMessage,
-        AnalyzeGate.missingEmbeddingsMessage,
-      );
-    });
+        expect(wasAccepted, isFalse);
+        expect(repository.sendMessageCalls, 0);
+        expect(notifier.state.canAnalyze, isFalse);
+        expect(notifier.state.embeddingsMissing, isTrue);
+        expect(
+          notifier.state.errorMessage,
+          AnalyzeGate.missingEmbeddingsMessage,
+        );
+      },
+    );
 
     test('chama /processar depois que status confirma embeddings', () async {
       final repository = _FakeChatRepository();
       final notifier = ChatNotifier(
         repository,
-        fetchUserStatus: () async => const UserStatusData(
-          hasCv: true,
-          hasEmbeddings: true,
-        ),
+        fetchUserStatus: () async =>
+            const UserStatusData(hasCv: true, hasEmbeddings: true),
       );
 
       final wasAccepted = await notifier.sendMessage('''
@@ -139,4 +144,10 @@ class _FakeChatRepository implements ChatRepositoryImpl {
       timestamp: DateTime(2026),
     );
   }
+
+  @override
+  Future<List<GapHistoryItem>> fetchGapHistory({
+    int limit = 50,
+    int offset = 0,
+  }) async => [];
 }

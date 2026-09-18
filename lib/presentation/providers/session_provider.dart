@@ -9,11 +9,12 @@ final secureTokenStoreProvider = Provider<TokenStore>((ref) {
   return SecureTokenStore();
 });
 
-final sessionProvider =
-    StateNotifierProvider<SessionNotifier, SessionState>((ref) {
-      final box = Hive.box<String>(SessionStorageKeys.hiveBoxName);
-      return SessionNotifier(box, ref.watch(secureTokenStoreProvider));
-    });
+final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((
+  ref,
+) {
+  final box = Hive.box<String>(SessionStorageKeys.hiveBoxName);
+  return SessionNotifier(box, ref.watch(secureTokenStoreProvider));
+});
 
 class SessionState {
   final bool hasSession;
@@ -118,7 +119,6 @@ class SessionNotifier extends StateNotifier<SessionState> {
   }
 
   Future<void> lock() async {
-    await Hive.box<MessageModel>('chat_history').clear();
     await _box.put(sessionLockedKey, 'true');
     _tokenStore.suppressReads();
     state = state.copyWith(hasSession: false, isLocked: true);
@@ -174,7 +174,9 @@ class SessionNotifier extends StateNotifier<SessionState> {
         .replaceAll(RegExp(r'^[_\.-]+|[_\.-]+$'), '');
 
     if (normalized.isEmpty) {
-      throw const FormatException('Informe um identificador de usuario valido.');
+      throw const FormatException(
+        'Informe um identificador de usuario valido.',
+      );
     }
 
     return normalized;

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/chat_message.dart';
-import '../providers/chat_provider.dart';
+import '../providers/history_provider.dart';
 import '../utils/authenticated_pdf_opener.dart';
 import '../widgets/app_drawer.dart';
 
-class HistoryScreen extends ConsumerWidget {
+class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
   static const Color _canvas = Color(0xFFFFF6E9);
@@ -15,69 +15,165 @@ class HistoryScreen extends ConsumerWidget {
   static const Color _yellow = Color(0xFFFFE16A);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref
-        .watch(chatProvider)
-        .messages
-        .where((message) => !message.isUser)
-        .toList()
-        .reversed
-        .toList();
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(historyProvider.notifier).refresh();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final historyState = ref.watch(historyProvider);
+    final history = historyState.items;
     final theme = Theme.of(context);
 
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(title: const Text('Historico')),
       body: DecoratedBox(
-        decoration: const BoxDecoration(color: _canvas),
-        child: history.isEmpty
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Container(
-                    width: 420,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: _yellow,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: _ink, width: 3),
-                      boxShadow: const [
-                        BoxShadow(color: _ink, offset: Offset(8, 8)),
-                      ],
+        decoration: const BoxDecoration(color: HistoryScreen._canvas),
+        child: historyState.isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : history.isEmpty
+            ? _HistoryEmptyState(
+                theme: theme,
+                errorMessage: historyState.errorMessage,
+                onRetry: () => ref.read(historyProvider.notifier).refresh(),
+              )
+            : Column(
+                children: [
+                  if (historyState.errorMessage != null)
+                    _HistoryErrorBanner(
+                      message: historyState.errorMessage!,
+                      onRetry: () =>
+                          ref.read(historyProvider.notifier).refresh(),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.history_toggle_off,
-                          size: 72,
-                          color: _ink,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Nenhum retorno salvo ainda.',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Quando o assistente responder, o resumo e o PDF aparecerao aqui.',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF4E5566),
-                          ),
-                        ),
-                      ],
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      itemCount: history.length,
+                      itemBuilder: (context, index) {
+                        return _HistoryResponseCard(message: history[index]);
+                      },
                     ),
                   ),
-                ),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                itemCount: history.length,
-                itemBuilder: (context, index) {
-                  return _HistoryResponseCard(message: history[index]);
-                },
+                ],
               ),
+      ),
+    );
+  }
+}
+
+class _HistoryEmptyState extends StatelessWidget {
+  const _HistoryEmptyState({
+    required this.theme,
+    required this.errorMessage,
+    required this.onRetry,
+  });
+
+  final ThemeData theme;
+  final String? errorMessage;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasError = errorMessage != null && errorMessage!.trim().isNotEmpty;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          width: 420,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: HistoryScreen._yellow,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: HistoryScreen._ink, width: 3),
+            boxShadow: const [
+              BoxShadow(color: HistoryScreen._ink, offset: Offset(8, 8)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                hasError ? Icons.error_outline : Icons.history_toggle_off,
+                size: 72,
+                color: HistoryScreen._ink,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                hasError
+                    ? 'Nao foi possivel carregar o historico.'
+                    : 'Nenhum retorno salvo ainda.',
+                style: theme.textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                hasError
+                    ? errorMessage!
+                    : 'Quando o assistente responder, o resumo e o PDF aparecerao aqui.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF4E5566),
+                ),
+              ),
+              if (hasError) ...[
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: onRetry,
+                  child: const Text('Tentar novamente'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryErrorBanner extends StatelessWidget {
+  const _HistoryErrorBanner({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFC7DE),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: HistoryScreen._ink, width: 2),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.wifi_off_rounded, color: HistoryScreen._ink),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: HistoryScreen._ink),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Tentar')),
+          ],
+        ),
       ),
     );
   }
@@ -107,10 +203,7 @@ class _HistoryResponseCardState extends State<_HistoryResponseCard> {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: HistoryScreen._ink, width: 3),
         boxShadow: const [
-          BoxShadow(
-            color: HistoryScreen._ink,
-            offset: Offset(6, 6),
-          ),
+          BoxShadow(color: HistoryScreen._ink, offset: Offset(6, 6)),
         ],
       ),
       child: Column(
