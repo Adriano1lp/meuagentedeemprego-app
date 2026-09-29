@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/repositories/cover_letter_repository_impl.dart';
+import '../../data/cover_letter_gate.dart';
 import '../../domain/entities/chat_message.dart';
+import '../providers/chat_provider.dart';
 import '../providers/consent_provider.dart';
+import '../providers/cover_letter_provider.dart';
 import '../providers/session_provider.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/chat_bubble.dart';
+import 'user_registration_screen.dart';
 
 class CoverLetterScreen extends ConsumerStatefulWidget {
   const CoverLetterScreen({super.key});
@@ -23,9 +26,21 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
   static const Color _yellow = Color(0xFFFFE16A);
 
   final TextEditingController _companyController = TextEditingController();
-  final CoverLetterRepositoryImpl _repository = CoverLetterRepositoryImpl();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
+  bool _isCheckingStatus = true;
+  bool _canGenerate = false;
+  bool _statusFailed = false;
+  bool _handleInFlight = false;
+  String? _blockMessage = CoverLetterGate.waitingStatusMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshReadiness();
+    });
+  }
 
   @override
   void dispose() {
@@ -33,53 +48,115 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
     super.dispose();
   }
 
-  Future<void> _handleGenerate() async {
-    final companyName = _companyController.text.trim();
-    final authToken = await ref.read(sessionProvider.notifier).readAccessToken();
+  bool get _generateEnabled =>
+      _canGenerate && !_isLoading && !_isCheckingStatus;
 
-    if (companyName.isEmpty) {
-      _showMessage('Informe o nome da empresa.');
-      return;
-    }
-
-    if (authToken == null || authToken.trim().isEmpty) {
-      _showMessage('Sessao expirada. Entre novamente.');
-      return;
-    }
-
-    final userMessage = ChatMessage(
-      id: 'u-${DateTime.now().microsecondsSinceEpoch}',
-      text: companyName,
-      isUser: true,
-      timestamp: DateTime.now(),
-    );
-
+  /// GET /users/me/status via the same fetcher as Analisar vaga.
+  /// Returns false when embeddings are missing or the status call fails.
+  Future<bool> _refreshReadiness() async {
+    if (!mounted) return false;
     setState(() {
-      _messages.add(userMessage);
-      _isLoading = true;
+      _isCheckingStatus = true;
     });
 
     try {
-      final response = await _repository.generateCoverLetter(
-        companyName: companyName,
-        authToken: authToken,
+      final status = await ref.read(userStatusFetcherProvider)();
+      if (!mounted) return false;
+      final allowed = CoverLetterGate.canGenerate(status);
+      setState(() {
+        _isCheckingStatus = false;
+        _canGenerate = allowed;
+        _statusFailed = false;
+        _blockMessage = CoverLetterGate.blockMessage(status);
+      });
+      return allowed;
+    } catch (e) {
+      if (!mounted) return false;
+      ref.read(consentProvider.notifier).applyIfOutdated(e);
+      final detail = _visibleError(e).trim();
+      setState(() {
+        _isCheckingStatus = false;
+        _canGenerate = false;
+        _statusFailed = true;
+        _blockMessage = detail.isEmpty
+            ? CoverLetterGate.statusErrorMessage
+            : '${CoverLetterGate.statusErrorMessage} $detail';
+      });
+      return false;
+    }
+  }
+
+  Future<void> _openCvUpload() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const UserRegistrationScreen(),
+      ),
+    );
+    if (!mounted) return;
+    await _refreshReadiness();
+  }
+
+  Future<void> _handleGenerate() async {
+    if (_handleInFlight || _isLoading || _isCheckingStatus || !_canGenerate) {
+      return;
+    }
+    _handleInFlight = true;
+
+    try {
+      final companyName = _companyController.text.trim();
+      if (companyName.isEmpty) {
+        _showMessage('Informe o nome da empresa.');
+        return;
+      }
+
+      final authToken = await ref
+          .read(sessionProvider.notifier)
+          .readAccessToken();
+      if (!mounted) return;
+      if (authToken == null || authToken.trim().isEmpty) {
+        _showMessage('Sessao expirada. Entre novamente.');
+        return;
+      }
+
+      final ready = await _refreshReadiness();
+      if (!ready || !mounted) return;
+
+      final userMessage = ChatMessage(
+        id: 'u-${DateTime.now().microsecondsSinceEpoch}',
+        text: companyName,
+        isUser: true,
+        timestamp: DateTime.now(),
       );
 
-      if (!mounted) return;
       setState(() {
-        _messages.add(response);
-        _companyController.clear();
+        _messages.add(userMessage);
+        _isLoading = true;
       });
-    } catch (e) {
-      if (!mounted) return;
-      ref.read(consentProvider.notifier).applyIfOutdated(e);
-      _showMessage(e.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      if (mounted) {
+
+      try {
+        final response = await ref.read(generateCoverLetterProvider)(
+          companyName: companyName,
+          authToken: authToken,
+        );
+
+        if (!mounted) return;
         setState(() {
-          _isLoading = false;
+          _messages.add(response);
+          _companyController.clear();
         });
+      } catch (e) {
+        if (!mounted) return;
+        ref.read(consentProvider.notifier).applyIfOutdated(e);
+        _showMessage(_visibleError(e));
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
+    } finally {
+      _handleInFlight = false;
     }
   }
 
@@ -128,7 +205,7 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
                 ),
               ),
             ),
-            _buildInputArea(_isLoading),
+            _buildInputArea(),
           ],
         ),
       ),
@@ -190,7 +267,11 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
     );
   }
 
-  Widget _buildInputArea(bool isLoading) {
+  Widget _buildInputArea() {
+    final generateEnabled = _generateEnabled;
+    final showGate =
+        !_isCheckingStatus && !_canGenerate && _blockMessage != null;
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -198,12 +279,14 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (showGate) ...[
+              _buildGate(_blockMessage!, statusFailed: _statusFailed),
+              const SizedBox(height: 10),
+            ],
             Padding(
               padding: const EdgeInsets.only(left: 4, bottom: 8),
               child: Text(
-                isLoading
-                    ? 'A API esta gerando a carta e preparando o PDF.'
-                    : 'Informe a empresa e toque em gerar carta.',
+                _inputHint(),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: const Color(0xFF4E5566),
                 ),
@@ -215,12 +298,12 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
               decoration: _brutalBoxDecoration(_paper, radius: 18, offset: 6),
               child: TextField(
                 controller: _companyController,
-                enabled: !isLoading,
+                enabled: generateEnabled,
                 decoration: const InputDecoration(
                   hintText: 'Nome da empresa...',
                   border: InputBorder.none,
                 ),
-                onSubmitted: (_) => _handleGenerate(),
+                onSubmitted: generateEnabled ? (_) => _handleGenerate() : null,
               ),
             ),
             const SizedBox(height: 10),
@@ -229,7 +312,7 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
               width: double.infinity,
               height: 56,
               decoration: BoxDecoration(
-                color: isLoading ? _yellow : _pink,
+                color: generateEnabled ? _pink : _yellow,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: _ink, width: 3),
                 boxShadow: const [
@@ -237,7 +320,7 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
                 ],
               ),
               child: FilledButton.icon(
-                onPressed: isLoading ? null : _handleGenerate,
+                onPressed: generateEnabled ? _handleGenerate : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
@@ -247,7 +330,7 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
                     side: BorderSide.none,
                   ),
                 ),
-                icon: isLoading
+                icon: _isLoading
                     ? const SizedBox(
                         width: 18,
                         height: 18,
@@ -257,11 +340,70 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
                         ),
                       )
                     : const Icon(Icons.mark_email_read_outlined),
-                label: Text(isLoading ? 'Gerando' : 'Gerar carta'),
+                label: Text(
+                  _isLoading
+                      ? 'Gerando'
+                      : _isCheckingStatus
+                          ? 'Verificando'
+                          : 'Gerar carta',
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  String _inputHint() {
+    if (_isLoading) {
+      return 'A API esta gerando a carta e preparando o PDF.';
+    }
+    if (_isCheckingStatus) {
+      return 'Verificando curriculo e embeddings...';
+    }
+    if (_canGenerate) {
+      return 'Informe a empresa e toque em gerar carta.';
+    }
+    return _blockMessage ?? CoverLetterGate.waitingStatusMessage;
+  }
+
+  Widget _buildGate(String message, {required bool statusFailed}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: _brutalBoxDecoration(_yellow, radius: 18, offset: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: _ink,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: statusFailed
+                  ? () async {
+                      await _refreshReadiness();
+                    }
+                  : () async {
+                      await _openCvUpload();
+                    },
+              icon: Icon(
+                statusFailed ? Icons.refresh : Icons.badge_outlined,
+              ),
+              label: Text(
+                statusFailed
+                    ? 'Tentar novamente'
+                    : 'Enviar ou atualizar curriculo',
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -291,7 +433,16 @@ class _CoverLetterScreenState extends ConsumerState<CoverLetterScreen> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 8),
+        ),
+      );
+  }
+
+  String _visibleError(Object error) {
+    return error.toString().replaceFirst('Exception: ', '');
   }
 }
 
