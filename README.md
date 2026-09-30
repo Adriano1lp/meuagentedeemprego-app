@@ -8,6 +8,10 @@ Android release APKs (debug-signed, internal beta) go to Firebase App Distributi
 CI passes `--dart-define=API_BASE_URL=https://meu-agente-de-emprego.onrender.com` so the APK can launch (HTTPS-only gate).
 See [`.github/firebase-app-distribution.md`](.github/firebase-app-distribution.md).
 
+## App mobile
+
+Telas, fluxos de currículo, carta e cota, e estados de erro: [`docs/app-mobile.md`](docs/app-mobile.md).
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
