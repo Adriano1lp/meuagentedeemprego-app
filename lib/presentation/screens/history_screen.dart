@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/entities/chat_message.dart';
+import '../../data/models/gap_history_item.dart';
+import '../../data/repositories/cv_file_repository.dart';
+import '../providers/cv_file_provider.dart';
 import '../providers/history_provider.dart';
-import '../utils/authenticated_pdf_opener.dart';
 import '../widgets/app_drawer.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -60,7 +61,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                       itemCount: history.length,
                       itemBuilder: (context, index) {
-                        return _HistoryResponseCard(message: history[index]);
+                        final item = history[index];
+                        return _HistoryResponseCard(
+                          item: item,
+                          onDownloadCv: item.cvFileName == null
+                              ? null
+                              : () => _downloadCv(item.cvFileName!),
+                        );
                       },
                     ),
                   ),
@@ -68,6 +75,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               ),
       ),
     );
+  }
+
+  Future<void> _downloadCv(String fileName) async {
+    try {
+      await ref.read(cvFileDownloadProvider)(fileName);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text(cvDownloadFailedMessage)));
+    }
   }
 }
 
@@ -180,9 +198,10 @@ class _HistoryErrorBanner extends StatelessWidget {
 }
 
 class _HistoryResponseCard extends StatefulWidget {
-  final ChatMessage message;
+  final GapHistoryItem item;
+  final Future<void> Function()? onDownloadCv;
 
-  const _HistoryResponseCard({required this.message});
+  const _HistoryResponseCard({required this.item, required this.onDownloadCv});
 
   @override
   State<_HistoryResponseCard> createState() => _HistoryResponseCardState();
@@ -190,11 +209,12 @@ class _HistoryResponseCard extends StatefulWidget {
 
 class _HistoryResponseCardState extends State<_HistoryResponseCard> {
   bool _isExpanded = false;
+  bool _isDownloading = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final pdfUri = _buildPdfUri(widget.message.pdfUrl);
+    final canDownload = widget.onDownloadCv != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -234,7 +254,10 @@ class _HistoryResponseCardState extends State<_HistoryResponseCard> {
                     ),
                     const Spacer(),
                     Text(
-                      _formatTimestamp(widget.message.timestamp),
+                      _formatTimestamp(
+                        widget.item.createdAt ??
+                            DateTime.fromMillisecondsSinceEpoch(0),
+                      ),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: const Color(0xFF4E5566),
                       ),
@@ -248,7 +271,7 @@ class _HistoryResponseCardState extends State<_HistoryResponseCard> {
                       ? CrossFadeState.showSecond
                       : CrossFadeState.showFirst,
                   firstChild: Text(
-                    widget.message.text,
+                    widget.item.displayText,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
@@ -257,7 +280,7 @@ class _HistoryResponseCardState extends State<_HistoryResponseCard> {
                     ),
                   ),
                   secondChild: Text(
-                    widget.message.text,
+                    widget.item.displayText,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: HistoryScreen._ink,
                       height: 1.5,
@@ -267,10 +290,10 @@ class _HistoryResponseCardState extends State<_HistoryResponseCard> {
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    if (pdfUri != null)
+                    if (canDownload) ...[
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => _openPdf(context, pdfUri),
+                          onPressed: _isDownloading ? null : _handleDownload,
                           style: OutlinedButton.styleFrom(
                             backgroundColor: const Color(0xFF87D2FF),
                             foregroundColor: HistoryScreen._ink,
@@ -279,11 +302,20 @@ class _HistoryResponseCardState extends State<_HistoryResponseCard> {
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
-                          icon: const Icon(Icons.picture_as_pdf_outlined),
-                          label: const Text('Abrir PDF'),
+                          icon: _isDownloading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.download_rounded),
+                          label: const Text('Baixar CV'),
                         ),
                       ),
-                    if (pdfUri != null) const SizedBox(width: 10),
+                      const SizedBox(width: 10),
+                    ],
                     Expanded(
                       child: FilledButton.tonalIcon(
                         onPressed: () {
@@ -317,18 +349,17 @@ class _HistoryResponseCardState extends State<_HistoryResponseCard> {
     );
   }
 
-  Uri? _buildPdfUri(String? pdfUrl) {
-    if (pdfUrl == null || pdfUrl.trim().isEmpty) return null;
-
-    final uri = Uri.tryParse(pdfUrl.trim());
-    if (uri == null) return null;
-    if (!uri.hasScheme && !uri.isAbsolute) return null;
-
-    return uri;
-  }
-
-  Future<void> _openPdf(BuildContext context, Uri uri) async {
-    await AuthenticatedPdfOpener.open(context, uri);
+  Future<void> _handleDownload() async {
+    final download = widget.onDownloadCv;
+    if (download == null || _isDownloading) return;
+    setState(() => _isDownloading = true);
+    try {
+      await download();
+    } finally {
+      if (mounted) {
+        setState(() => _isDownloading = false);
+      }
+    }
   }
 
   String _formatTimestamp(DateTime timestamp) {

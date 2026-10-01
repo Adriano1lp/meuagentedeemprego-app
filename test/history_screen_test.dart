@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:agente_emprego/data/history_errors.dart';
 import 'package:agente_emprego/data/models/gap_history_item.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
+import 'package:agente_emprego/data/repositories/cv_file_repository.dart';
 import 'package:agente_emprego/data/token_store.dart';
+import 'package:agente_emprego/presentation/providers/cv_file_provider.dart';
 import 'package:agente_emprego/presentation/providers/history_provider.dart';
 import 'package:agente_emprego/presentation/providers/session_provider.dart';
 import 'package:agente_emprego/presentation/screens/history_screen.dart';
@@ -133,5 +135,104 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(calls, 2);
+  });
+
+  testWidgets('C1 com cv_file_name mostra Baixar CV e baixa esse arquivo', (
+    tester,
+  ) async {
+    final downloaded = <String>[];
+    await tester.pumpWidget(
+      testProviderScope(
+        tokenStore: tokenStore,
+        overrides: [
+          gapHistoryFetcherProvider.overrideWithValue(
+            () async => [
+              GapHistoryItem(
+                id: 'com-cv',
+                jobTitle: 'Analista',
+                matchScore: 70,
+                cvFileName: 'cv_otimizado.pdf',
+              ),
+            ],
+          ),
+          cvFileDownloadProvider.overrideWithValue((fileName) async {
+            downloaded.add(fileName);
+          }),
+        ],
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Baixar CV'), findsOneWidget);
+    expect(find.text('Abrir PDF'), findsNothing);
+
+    await tester.tap(find.text('Baixar CV'));
+    await tester.pumpAndSettle();
+
+    expect(downloaded, ['cv_otimizado.pdf']);
+  });
+
+  testWidgets('C2 sem cv_file_name nao mostra Baixar CV', (tester) async {
+    await tester.pumpWidget(
+      testProviderScope(
+        tokenStore: tokenStore,
+        overrides: [
+          gapHistoryFetcherProvider.overrideWithValue(
+            () async => [
+              GapHistoryItem(
+                id: 'sem-cv',
+                jobTitle: 'Designer',
+                matchScore: 40,
+                cvFileName: null,
+              ),
+            ],
+          ),
+        ],
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Designer'), findsWidgets);
+    expect(find.text('Baixar CV'), findsNothing);
+    expect(find.text('Abrir PDF'), findsNothing);
+  });
+
+  testWidgets('C4 erro de download mostra so a mensagem fixa', (tester) async {
+    await tester.pumpWidget(
+      testProviderScope(
+        tokenStore: tokenStore,
+        overrides: [
+          gapHistoryFetcherProvider.overrideWithValue(
+            () async => [
+              const GapHistoryItem(
+                id: 'falha',
+                jobTitle: 'QA',
+                cvFileName: 'cv_qa.pdf',
+              ),
+            ],
+          ),
+          cvFileDownloadProvider.overrideWithValue((fileName) async {
+            throw Exception(
+              'Bearer jwt-secret <html> /users/me/files/cv_qa.pdf',
+            );
+          }),
+        ],
+        child: const MaterialApp(home: HistoryScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Baixar CV'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(cvDownloadFailedMessage), findsOneWidget);
+    expect(find.textContaining('jwt-secret'), findsNothing);
+    expect(find.textContaining('Bearer'), findsNothing);
+    expect(find.textContaining('<html>'), findsNothing);
+    expect(find.textContaining('/users/me/files'), findsNothing);
   });
 }
