@@ -51,6 +51,47 @@ void main() {
       expect(items.first.createdAt, DateTime.parse('2026-09-01T15:04:00Z'));
       expect(items.last.id, 'mongo-1');
       expect(items.last.matchScore, 70);
+      expect(items.first.cvFileName, isNull);
+    });
+
+    test('mapeia cv_file_name e descarta nome inseguro ou pdf_url', () {
+      final ready = GapHistoryItem.fromJson({
+        'id': '1',
+        'cv_file_name': 'cv_otimizado.pdf',
+        'pdf_url': 'https://cdn.example/publico.pdf',
+      });
+      expect(ready?.cvFileName, 'cv_otimizado.pdf');
+
+      final missing = GapHistoryItem.fromJson({
+        'id': '2',
+        'pdf_url': 'https://cdn.example/publico.pdf',
+      });
+      expect(missing?.cvFileName, isNull);
+
+      final explicitNull = GapHistoryItem.fromJson({
+        'id': '3',
+        'cv_file_name': null,
+      });
+      expect(explicitNull?.cvFileName, isNull);
+
+      for (final unsafe in [
+        '../segredo.pdf',
+        'pasta/cv.pdf',
+        r'pasta\cv.pdf',
+        '',
+        '   ',
+        '..',
+        '%2e%2e%2fsegredo.pdf',
+      ]) {
+        expect(
+          GapHistoryItem.fromJson({
+            'id': 'unsafe',
+            'cv_file_name': unsafe,
+          })?.cvFileName,
+          isNull,
+          reason: unsafe,
+        );
+      }
     });
 
     test('resposta vazia ou sem items vira lista vazia', () {
@@ -133,32 +174,35 @@ void main() {
       expect(items.single.jobTitle, 'Analista de Dados');
     });
 
-    test('nao envia X-User-Id mesmo com userId de outro usuario no client', () async {
-      final store = MemoryTokenStore(accessToken: 'jwt-owner');
-      late RequestOptions captured;
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: 'https://example.test',
-          headers: {'X-User-Id': 'victim-user'},
-        ),
-      );
-      dio.httpClientAdapter = _JsonAdapter(
-        onFetch: (options) => captured = options,
-        body: {'items': []},
-      );
+    test(
+      'nao envia X-User-Id mesmo com userId de outro usuario no client',
+      () async {
+        final store = MemoryTokenStore(accessToken: 'jwt-owner');
+        late RequestOptions captured;
+        final dio = Dio(
+          BaseOptions(
+            baseUrl: 'https://example.test',
+            headers: {'X-User-Id': 'victim-user'},
+          ),
+        );
+        dio.httpClientAdapter = _JsonAdapter(
+          onFetch: (options) => captured = options,
+          body: {'items': []},
+        );
 
-      await ChatRepositoryImpl(
-        chatBox,
-        tokenStore: store,
-        userId: 'victim-user',
-        dio: dio,
-      ).fetchGapHistory();
+        await ChatRepositoryImpl(
+          chatBox,
+          tokenStore: store,
+          userId: 'victim-user',
+          dio: dio,
+        ).fetchGapHistory();
 
-      expect(captured.headers['Authorization'], 'Bearer jwt-owner');
-      expect(captured.headers['X-User-Id'], isNull);
-      expect(captured.headers['x-user-id'], isNull);
-      expect(captured.queryParameters.containsKey('user_id'), isFalse);
-    });
+        expect(captured.headers['Authorization'], 'Bearer jwt-owner');
+        expect(captured.headers['X-User-Id'], isNull);
+        expect(captured.headers['x-user-id'], isNull);
+        expect(captured.queryParameters.containsKey('user_id'), isFalse);
+      },
+    );
 
     test('sem token nao chama a API', () async {
       var called = false;
@@ -234,7 +278,9 @@ void main() {
 
     test('erro 500 nao vaza path interno nem URL da API', () async {
       final store = MemoryTokenStore(accessToken: 'jwt-should-not-leak');
-      final dio = Dio(BaseOptions(baseUrl: 'https://meu-agente-de-emprego.onrender.com'));
+      final dio = Dio(
+        BaseOptions(baseUrl: 'https://meu-agente-de-emprego.onrender.com'),
+      );
       dio.httpClientAdapter = _JsonAdapter(
         onFetch: (_) {},
         statusCode: 500,
@@ -269,6 +315,7 @@ void main() {
             jobTitle: 'Dev Flutter',
             matchScore: 90,
             createdAt: DateTime(2026, 9, 1, 12),
+            cvFileName: 'cv_dev.pdf',
           ),
         ],
       );
@@ -280,20 +327,22 @@ void main() {
       expect(notifier.state.errorMessage, isNull);
       expect(notifier.state.items, hasLength(1));
       expect(notifier.state.items.single.id, 'api-1');
-      expect(notifier.state.items.single.text, contains('Dev Flutter'));
+      expect(notifier.state.items.single.displayText, contains('Dev Flutter'));
+      expect(notifier.state.items.single.cvFileName, 'cv_dev.pdf');
     });
 
-    test('API vazia mostra vazio e nao mistura Hive de outro usuario', () async {
-      final notifier = HistoryNotifier(
-        fetchRemote: () async => const [],
-      );
+    test(
+      'API vazia mostra vazio e nao mistura Hive de outro usuario',
+      () async {
+        final notifier = HistoryNotifier(fetchRemote: () async => const []);
 
-      await notifier.refresh();
+        await notifier.refresh();
 
-      expect(notifier.state.fromRemote, isTrue);
-      expect(notifier.state.items, isEmpty);
-      expect(notifier.state.errorMessage, isNull);
-    });
+        expect(notifier.state.fromRemote, isTrue);
+        expect(notifier.state.items, isEmpty);
+        expect(notifier.state.errorMessage, isNull);
+      },
+    );
 
     test('erro da API mostra mensagem segura sem fallback local', () async {
       var consentCalled = false;

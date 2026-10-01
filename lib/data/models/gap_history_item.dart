@@ -1,4 +1,5 @@
 import '../../domain/entities/chat_message.dart';
+import '../cv_file_name.dart';
 
 /// One row from GET `/users/me/gap-history` (`job_analysis_insights`).
 class GapHistoryItem {
@@ -15,6 +16,7 @@ class GapHistoryItem {
     this.generationBlocked = false,
     this.blockedReason,
     this.createdAt,
+    this.cvFileName,
   });
 
   final String id;
@@ -29,6 +31,9 @@ class GapHistoryItem {
   final bool generationBlocked;
   final String? blockedReason;
   final DateTime? createdAt;
+
+  /// Sanitized basename from `cv_file_name`. Null hides the download CTA.
+  final String? cvFileName;
 
   /// Maps API JSON (SQLite or Mongo) into items. Unknown/malformed rows are skipped.
   static List<GapHistoryItem> listFromResponse(dynamic data) {
@@ -69,6 +74,7 @@ class GapHistoryItem {
       generationBlocked: json['generation_blocked'] == true,
       blockedReason: _readString(json['blocked_reason']),
       createdAt: _readDate(json['created_at']),
+      cvFileName: _readCvFileName(json['cv_file_name']),
     );
   }
 
@@ -140,6 +146,13 @@ class GapHistoryItem {
     }
     final text = value.toString().trim();
     return text.isEmpty ? null : text;
+  }
+
+  static String? _readCvFileName(dynamic value) {
+    if (value is! String) {
+      return null;
+    }
+    return sanitizeCvFileName(value);
   }
 
   static String? _readString(dynamic value) {

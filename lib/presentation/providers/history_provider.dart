@@ -6,7 +6,6 @@ import '../../data/history_errors.dart';
 import '../../data/models/gap_history_item.dart';
 import '../../data/models/message_model.dart';
 import '../../data/repositories/chat_repository_impl.dart';
-import '../../domain/entities/chat_message.dart';
 import 'consent_provider.dart';
 import 'session_provider.dart';
 
@@ -32,7 +31,7 @@ final historyProvider =
     });
 
 class HistoryState {
-  final List<ChatMessage> items;
+  final List<GapHistoryItem> items;
   final bool isLoading;
   final String? errorMessage;
   final bool fromRemote;
@@ -45,7 +44,7 @@ class HistoryState {
   });
 
   HistoryState copyWith({
-    List<ChatMessage>? items,
+    List<GapHistoryItem>? items,
     bool? isLoading,
     String? errorMessage,
     bool clearError = false,
@@ -76,11 +75,7 @@ class HistoryNotifier extends StateNotifier<HistoryState> {
 
     try {
       final remote = await _fetchRemote();
-      state = HistoryState(
-        items: remote.map((item) => item.toChatMessage()).toList(),
-        isLoading: false,
-        fromRemote: true,
-      );
+      state = HistoryState(items: remote, isLoading: false, fromRemote: true);
     } catch (error) {
       final consentError = ConsentOutdatedException.fromError(error);
       if (consentError != null) {
