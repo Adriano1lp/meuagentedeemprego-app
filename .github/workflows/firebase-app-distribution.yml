@@ -1,8 +1,9 @@
 # Upload the current Android release APK to Firebase App Distribution.
 #
 # Triggers: workflow_dispatch, push to app-release-*, tags v* / app-release-*
-# Scope: Android only (debug-signed release is OK for internal beta).
-# Signing with a real upload keystore is a follow-up fatia — not in this workflow.
+# Scope: Android only.
+# Release is not debuggable and must be signed with the upload key.
+# If that key is absent, the release build fails. No debug-key fallback.
 # Builds with --dart-define=API_BASE_URL=https://... (HTTPS required; see docs).
 # See .github/firebase-app-distribution.md
 

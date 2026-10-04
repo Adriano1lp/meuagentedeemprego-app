@@ -4,7 +4,8 @@ A new Flutter project.
 
 ## CI/CD (Firebase App Distribution)
 
-Android release APKs (debug-signed, internal beta) go to Firebase App Distribution.
+Android release APKs (internal beta) go to Firebase App Distribution.
+The release build is not debuggable and signs only with the Play App Signing upload key. If that key is absent, the release build fails. It does not use the debug key.
 CI passes `--dart-define=API_BASE_URL=https://meu-agente-de-emprego.onrender.com` so the APK can launch (HTTPS-only gate).
 See [`.github/firebase-app-distribution.md`](.github/firebase-app-distribution.md).
 

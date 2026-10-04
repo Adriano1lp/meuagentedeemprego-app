@@ -6,9 +6,9 @@ The app **will not open** in a release APK if `API_BASE_URL` is not HTTPS. `lib/
 
 `https://meu-agente-de-emprego.onrender.com`
 
-This uses the app **as-is**: `android/app/build.gradle.kts` still signs `release` with the **debug** keystore. That is OK for internal beta. Do not put a keystore or `key.properties` in this repo.
+Release signing uses the Play App Signing **upload key** (`android/key.properties`, gitignored, or `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`). The release build is not debuggable. If the upload key is missing, the release build **fails**. There is no fallback to the debug keystore. Do not put a keystore, passwords, or `key.properties` in this repo, and do not print those values in logs.
 
-**Follow-up fatia (not required to merge this PR):** real Play/upload signing via `ANDROID_KEYSTORE_*` secrets + `key.properties`. **iOS** IPA is also follow-up (no certs/Fastlane in this repo).
+This workflow does not create that key and does not inject it. Until the upload key is supplied outside the repository, `flutter build apk --release` here fails. **iOS** IPA remains out of scope (no certs/Fastlane in this repo).
 
 ## Triggers
 
@@ -43,9 +43,9 @@ Do **not** set this to `http://127.0.0.1:8000` (or any `http://` URL). That comp
 
 Release/profile Dart also falls back to the same production HTTPS URL when `--dart-define` is omitted. Debug still defaults to `http://127.0.0.1:8000` for local API work. The HTTPS-only gate is unchanged.
 
-## Follow-up secrets (signing fatia — not required now)
+## Upload key (required for the release APK; not stored in this repo)
 
-`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Unused by this workflow.
+The release Gradle build reads `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD` when `android/key.properties` is absent. This workflow does not set them and does not fall back to the debug keystore, so the release build fails until those values exist outside the repository.
 
 ## Money: tester group
 

@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Play App Signing upload key. Never commit the keystore, passwords, or key.properties.
+*.jks
+*.keystore
+key.properties
+**/key.properties
