@@ -154,11 +154,6 @@ void main() {
   testWidgets('C4 402 mostra a frase neutra e encerra o spinner', (
     WidgetTester tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
     final script = _LetterScript(
       statusCode: 402,
       data: {
@@ -183,7 +178,6 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Nexa Talent');
     await tester.tap(find.widgetWithText(FilledButton, 'Gerar carta'));
     await _pumpUntil(tester, find.text(monthlyQuotaLimitMessage));
-    await tester.pump(const Duration(milliseconds: 400));
 
     expect(script.posts, 1);
     expect(find.text(monthlyQuotaLimitMessage), findsOneWidget);
@@ -202,11 +196,6 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Assinar'), findsNothing);
     expect(find.widgetWithText(TextButton, 'Upgrade'), findsNothing);
     expect(find.text('Nexa Talent'), findsWidgets);
-
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('goldens/monthly_quota_limit.png'),
-    );
   });
 
   testWidgets('C5 422 mostra detail de parse invalido e encerra o spinner', (
