@@ -40,7 +40,7 @@ class LocalBiometricAuthService implements BiometricAuthService {
     required String reason,
   }) async {
     try {
-      return _localAuthentication.authenticate(
+      return await _localAuthentication.authenticate(
         localizedReason: reason,
         options: const AuthenticationOptions(
           biometricOnly: true,

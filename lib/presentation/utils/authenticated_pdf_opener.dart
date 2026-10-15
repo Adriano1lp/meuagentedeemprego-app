@@ -3,11 +3,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api_config.dart';
+import '../../data/api_errors.dart';
 import '../../data/consent_outdated.dart';
 import '../../data/repositories/chat_repository_impl.dart';
 import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
 import 'pdf_file_handler.dart';
+
+const String authenticatedPdfDownloadFailedMessage =
+    'Nao foi possivel baixar o PDF autenticado.';
+
+/// 402 uses the shared quota sentence. Other HTTP errors keep a string
+/// `detail` when the body is a map, and otherwise a fixed failure sentence.
+String authenticatedPdfDownloadMessage(DioException error) {
+  if (error.response?.statusCode == 402) {
+    return extractApiErrorMessage(
+      error,
+      fallback: authenticatedPdfDownloadFailedMessage,
+    );
+  }
+
+  final data = error.response?.data;
+  if (data is Map && data['detail'] is String) {
+    final detail = (data['detail'] as String).trim();
+    if (detail.isNotEmpty) return detail;
+  }
+
+  return authenticatedPdfDownloadFailedMessage;
+}
 
 class AuthenticatedPdfOpener {
   static Future<void> open(BuildContext context, Uri uri) async {
@@ -50,13 +73,7 @@ class AuthenticatedPdfOpener {
         return;
       }
 
-      final data = e.response?.data;
-      if (data is Map<String, dynamic> && data['detail'] is String) {
-        _showMessage(messenger, data['detail'] as String);
-        return;
-      }
-
-      _showMessage(messenger, 'Nao foi possivel baixar o PDF autenticado.');
+      _showMessage(messenger, authenticatedPdfDownloadMessage(e));
     } catch (e) {
       final consentError = ConsentOutdatedException.fromError(e);
       if (consentError != null) {

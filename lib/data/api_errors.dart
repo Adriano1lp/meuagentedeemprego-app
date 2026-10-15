@@ -2,11 +2,21 @@ import 'package:dio/dio.dart';
 
 import 'consent_outdated.dart';
 
+/// Fixed copy for HTTP 402 (monthly quota exhausted).
+/// The API body is ignored so the screen stays free of prices and links.
+const String monthlyQuotaLimitMessage =
+    'Você atingiu o limite do seu plano este mês';
+
 String extractApiErrorMessage(
   DioException error, {
   required String fallback,
   String? apiBaseUrl,
 }) {
+  final status = error.response?.statusCode;
+  if (status == 402) {
+    return monthlyQuotaLimitMessage;
+  }
+
   if (error.type == DioExceptionType.receiveTimeout ||
       error.type == DioExceptionType.sendTimeout) {
     return 'A analise demorou demais. Tente novamente.';
@@ -23,7 +33,6 @@ String extractApiErrorMessage(
     return 'Nao foi possivel alcancar a API.';
   }
 
-  final status = error.response?.statusCode;
   final detail = extractFastApiDetail(error.response?.data);
   if (detail != null) {
     return status != null ? 'HTTP $status: $detail' : detail;

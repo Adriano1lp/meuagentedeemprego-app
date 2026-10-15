@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:agente_emprego/data/api_errors.dart';
 import 'package:agente_emprego/data/cover_letter_gate.dart';
 import 'package:agente_emprego/data/models/message_model.dart';
 import 'package:agente_emprego/data/repositories/auth_repository_impl.dart';
@@ -150,15 +151,22 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
-  testWidgets('C4 402 mostra detail da cota e encerra o spinner', (
+  testWidgets('C4 402 mostra a frase neutra e encerra o spinner', (
     WidgetTester tester,
   ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final script = _LetterScript(
       statusCode: 402,
       data: {
         'detail': {
           'code': 'SUBSCRIPTION_REQUIRED',
-          'message': 'Cota gratuita do mes esgotada.',
+          'message':
+              'Cota gratuita do mes esgotada. Assine em https://example.test/checkout por R\$ 29.',
+          'checkout_url': 'https://example.test/checkout',
         },
       },
     );
@@ -174,21 +182,31 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'Nexa Talent');
     await tester.tap(find.widgetWithText(FilledButton, 'Gerar carta'));
-    await _pumpUntil(
-      tester,
-      find.textContaining('Cota gratuita do mes esgotada.'),
-    );
+    await _pumpUntil(tester, find.text(monthlyQuotaLimitMessage));
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(script.posts, 1);
-    expect(
-      find.textContaining('HTTP 402: Cota gratuita do mes esgotada.'),
-      findsOneWidget,
-    );
+    expect(find.text(monthlyQuotaLimitMessage), findsOneWidget);
+    expect(find.textContaining('HTTP 402'), findsNothing);
+    expect(find.textContaining('Cota gratuita'), findsNothing);
+    expect(find.textContaining('SUBSCRIPTION'), findsNothing);
+    expect(find.textContaining('checkout'), findsNothing);
+    expect(find.textContaining('https://'), findsNothing);
+    expect(find.textContaining('R\$'), findsNothing);
+    expect(find.textContaining('Assine'), findsNothing);
     expect(find.textContaining('desconhecido'), findsNothing);
     expect(find.textContaining('Erro inesperado'), findsNothing);
     expect(find.text('Gerando'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Gerar carta'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Assinar'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Upgrade'), findsNothing);
+    expect(find.text('Nexa Talent'), findsWidgets);
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/monthly_quota_limit.png'),
+    );
   });
 
   testWidgets('C5 422 mostra detail de parse invalido e encerra o spinner', (

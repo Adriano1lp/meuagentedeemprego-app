@@ -23,7 +23,7 @@ void main() {
       );
     });
 
-    test('usa detail.message de cota 402', () {
+    test('402 ignora o corpo e usa a frase neutra de limite', () {
       final error = DioException(
         requestOptions: RequestOptions(path: '/processar'),
         response: Response(
@@ -32,10 +32,12 @@ void main() {
           data: {
             'detail': {
               'code': 'SUBSCRIPTION_REQUIRED',
-              'message': 'Cota gratuita do mes esgotada.',
+              'message':
+                  'Cota gratuita do mes esgotada. Assine em https://example.test/checkout por R\$ 29.',
               'used': 5,
               'limit': 5,
               'plan': 'free',
+              'checkout_url': 'https://example.test/checkout',
             },
           },
         ),
@@ -43,7 +45,26 @@ void main() {
 
       expect(
         extractApiErrorMessage(error, fallback: 'Falha ao conectar com a API'),
-        'HTTP 402: Cota gratuita do mes esgotada.',
+        monthlyQuotaLimitMessage,
+      );
+    });
+
+    test('402 sem detail tambem usa a frase neutra', () {
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/users/me/cover-letter'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/users/me/cover-letter'),
+          statusCode: 402,
+          data: null,
+        ),
+      );
+
+      expect(
+        extractApiErrorMessage(
+          error,
+          fallback: 'Falha ao gerar carta de apresentacao',
+        ),
+        monthlyQuotaLimitMessage,
       );
     });
 

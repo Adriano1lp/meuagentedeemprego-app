@@ -61,25 +61,25 @@ O app não contém o literal `[data atual]` e não grava data no corpo da carta:
 
 ## Cota (402)
 
-Não há tela, contador nem texto fixo de cota. O 402 não tem ramo próprio.
+Não há contador nem botão de plano. HTTP 402 tem ramo próprio: a frase fixa "Você atingiu o limite do seu plano este mês". O app ignora `detail`, código, preço e qualquer URL do corpo.
 
-`POST /users/me/cover-letter` que responde 402 cai em `rethrowApiError`. A tela tira o prefixo `Exception: `, mostra o resultado num SnackBar de 8 segundos e encerra o spinner. O balão do agente não é criado. O nome da empresa permanece no campo. Se o último status ainda tiver embeddings, "Gerar carta" volta a ficar disponível.
+`POST /users/me/cover-letter` que responde 402 cai em `rethrowApiError`. A tela tira o prefixo `Exception: `, mostra essa frase num SnackBar de 8 segundos e encerra o spinner. O balão do agente não é criado. O nome da empresa permanece no campo. Se o último status ainda tiver embeddings, "Gerar carta" volta a ficar disponível.
 
-O mesmo formatador vale para upload, rebuild, `POST /processar` e autenticação quando o Dio recebe um 402. O histórico não usa esse formatador.
+O mesmo formatador vale para upload, rebuild, `POST /processar`, autenticação e o aceite legal quando o Dio recebe um 402. O histórico e o download do PDF autenticado, que não usam o formatador geral, também trocam 402 por essa frase. Outros erros do histórico continuam nas frases fixas de sempre.
 
 ## Estados de erro
 
-O texto vem de um destes lugares. O app não inventa a frase da cota nem cola corpo de currículo ou de carta.
+O texto vem de um destes lugares. O app não cola corpo de currículo ou de carta. A cota é a exceção: 402 sempre vira a frase fixa, nunca o `detail`.
 
 | Origem | Forma na tela |
 | --- | --- |
-| `detail` da API (FastAPI) | String em `detail`; ou `detail.message`; ou, numa lista de validação, o primeiro `msg` ou `message`. Carta, análise, currículo e login prefixam `HTTP <código>: `. |
+| `detail` da API (FastAPI) | String em `detail`; ou `detail.message`; ou, numa lista de validação, o primeiro `msg` ou `message`. Carta, análise, currículo e login prefixam `HTTP <código>: `, exceto 402, que usa só a frase fixa de cota. |
 | Frase fixa do app | Gates, validação local, timeouts e falhas sem `detail`. |
 | Exceção já montada | A tela mostra `toString()` sem o prefixo `Exception: `. |
 | Histórico | Não mostra `detail`, URL, caminho nem token. Usa frases fixas, salvo consentimento desatualizado, que usa a mensagem da exceção. |
-| Download do PDF | Se o corpo for um mapa com `detail` string, mostra essa string crua, sem prefixo `HTTP`. Senão, "Nao foi possivel baixar o PDF autenticado." ou "Nao foi possivel abrir o PDF." |
+| Download do PDF | 402 usa a frase fixa de cota. Nos outros erros, se o corpo for um mapa com `detail` string, mostra essa string crua, sem prefixo `HTTP`. Senão, "Nao foi possivel baixar o PDF autenticado." ou "Nao foi possivel abrir o PDF." |
 
-**402.** SnackBar `HTTP 402: ` mais o `detail` acima (em geral `detail.message`). Não há outro estado visual de cota.
+**402.** SnackBar (ou a faixa do histórico) com "Você atingiu o limite do seu plano este mês". Sem preço, link, menção à web ou botão de compra. Não há outro estado visual de cota.
 
 **422.** O mesmo caminho, com prefixo `HTTP 422: `. String de `detail`, ou a primeira mensagem da lista de validação. Na carta, também é SnackBar e o spinner para.
 
