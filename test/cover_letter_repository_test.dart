@@ -1,3 +1,4 @@
+import 'package:agente_emprego/data/api_errors.dart';
 import 'package:agente_emprego/data/repositories/cover_letter_repository_impl.dart';
 import 'package:agente_emprego/data/token_store.dart';
 import 'package:dio/dio.dart';
@@ -67,14 +68,15 @@ void main() {
     expect(message.isUser, isFalse);
   });
 
-  test('402 mostra detail.message da cota', () async {
+  test('402 mostra a frase neutra e ignora o corpo da cota', () async {
     final repository = repositoryFor(
       dioThatRejects(
         statusCode: 402,
         data: {
           'detail': {
             'code': 'SUBSCRIPTION_REQUIRED',
-            'message': 'Cota gratuita do mes esgotada.',
+            'message':
+                'Cota gratuita do mes esgotada. Assine em https://example.test/checkout',
           },
         },
       ),
@@ -86,7 +88,14 @@ void main() {
         authToken: 'token',
       ),
       throwsA(
-        _readableDetail('HTTP 402: Cota gratuita do mes esgotada.'),
+        predicate<Object>((error) {
+          final text = error.toString();
+          return text.contains(monthlyQuotaLimitMessage) &&
+              !text.contains('HTTP 402') &&
+              !text.contains('checkout') &&
+              !text.contains('Assine') &&
+              !text.contains('Cota gratuita');
+        }, 'frase neutra de cota, sem corpo da API'),
       ),
     );
   });

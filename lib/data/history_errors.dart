@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import 'api_errors.dart';
 import 'consent_outdated.dart';
 
 const String historyLoginRequiredMessage =
@@ -20,6 +21,9 @@ String safeHistoryErrorMessage(Object error) {
     final status = error.response?.statusCode;
     if (status == 401) {
       return historySessionExpiredMessage;
+    }
+    if (status == 402) {
+      return monthlyQuotaLimitMessage;
     }
   }
 
