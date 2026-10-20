@@ -15,6 +15,8 @@ import 'user_registration_screen.dart';
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
+  static const String routeName = '/entrar';
+
   @override
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
@@ -28,7 +30,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   final AuthRepositoryImpl _repository = AuthRepositoryImpl();
   final TextEditingController _registerNameController = TextEditingController();
-  final TextEditingController _registerEmailController = TextEditingController();
+  final TextEditingController _registerEmailController =
+      TextEditingController();
   final TextEditingController _registerPasswordController =
       TextEditingController();
   final TextEditingController _loginEmailController = TextEditingController();
@@ -104,10 +107,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     }
 
     await _authenticate(
-      action: () => _repository.login(
-        email: email,
-        password: password,
-      ),
+      action: () => _repository.login(email: email, password: password),
       offerBiometrics: true,
     );
   }
@@ -122,10 +122,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
     try {
       final sessionData = await action();
-      ref.read(consentProvider.notifier).applyFromUser(
-        termsVersion: sessionData.termsVersion,
-        privacyVersion: sessionData.privacyVersion,
-      );
+      ref
+          .read(consentProvider.notifier)
+          .applyFromUser(
+            termsVersion: sessionData.termsVersion,
+            privacyVersion: sessionData.privacyVersion,
+          );
 
       var hasCv = false;
       try {
@@ -135,13 +137,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         ref.read(consentProvider.notifier).applyException(error);
       }
 
-      await ref.read(sessionProvider.notifier).saveSession(
-        authToken: sessionData.authToken,
-        userId: sessionData.userId,
-        email: sessionData.email,
-        displayName: sessionData.displayName,
-        hasCv: hasCv,
-      );
+      await ref
+          .read(sessionProvider.notifier)
+          .saveSession(
+            authToken: sessionData.authToken,
+            userId: sessionData.userId,
+            email: sessionData.email,
+            displayName: sessionData.displayName,
+            hasCv: hasCv,
+          );
 
       if (!mounted) return;
 
@@ -153,9 +157,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       final nextScreen = hasCv
           ? const HomeScreen()
           : const UserRegistrationScreen();
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => nextScreen),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
     } catch (e) {
       if (!mounted) return;
       ref.read(consentProvider.notifier).applyIfOutdated(e);
@@ -171,6 +175,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(sessionProvider, (previous, next) {
+      if (previous?.userId == next.userId) {
+        return;
+      }
+      _loadBiometricLoginState();
+    });
+
     final theme = Theme.of(context);
 
     return DefaultTabController(
@@ -186,10 +197,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           ),
         ),
         body: TabBarView(
-          children: [
-            _buildLoginTab(theme),
-            _buildRegisterTab(theme),
-          ],
+          children: [_buildLoginTab(theme), _buildRegisterTab(theme)],
         ),
       ),
     );
@@ -421,9 +429,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       color: color,
       borderRadius: BorderRadius.circular(24),
       border: Border.all(color: _ink, width: 3),
-      boxShadow: const [
-        BoxShadow(color: _ink, offset: Offset(8, 8)),
-      ],
+      boxShadow: const [BoxShadow(color: _ink, offset: Offset(8, 8))],
     );
   }
 
@@ -432,9 +438,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       color: color,
       borderRadius: BorderRadius.circular(999),
       border: Border.all(color: _ink, width: 2),
-      boxShadow: const [
-        BoxShadow(color: _ink, offset: Offset(3, 3)),
-      ],
+      boxShadow: const [BoxShadow(color: _ink, offset: Offset(3, 3))],
     );
   }
 
@@ -538,18 +542,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           break;
       }
 
-      final authToken =
-          await ref.read(sessionProvider.notifier).revealVaultTokenAfterBiometric();
+      final authToken = await ref
+          .read(sessionProvider.notifier)
+          .revealVaultTokenAfterBiometric();
       if (authToken == null || authToken.trim().isEmpty) {
         _showMessage('Sessao expirada. Entre com email e senha.');
         return;
       }
 
       final currentUser = await _repository.getCurrentUser(authToken);
-      ref.read(consentProvider.notifier).applyFromUser(
-        termsVersion: currentUser.termsVersion,
-        privacyVersion: currentUser.privacyVersion,
-      );
+      ref
+          .read(consentProvider.notifier)
+          .applyFromUser(
+            termsVersion: currentUser.termsVersion,
+            privacyVersion: currentUser.privacyVersion,
+          );
 
       var hasCv = false;
       try {
@@ -559,21 +566,23 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         ref.read(consentProvider.notifier).applyException(error);
       }
 
-      await ref.read(sessionProvider.notifier).saveSession(
-        authToken: authToken,
-        userId: currentUser.userId,
-        email: currentUser.email,
-        displayName: currentUser.displayName,
-        hasCv: hasCv,
-      );
+      await ref
+          .read(sessionProvider.notifier)
+          .saveSession(
+            authToken: authToken,
+            userId: currentUser.userId,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            hasCv: hasCv,
+          );
 
       if (!mounted) return;
       final nextScreen = hasCv
           ? const HomeScreen()
           : const UserRegistrationScreen();
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => nextScreen),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
     } catch (e) {
       if (!mounted) return;
       ref.read(consentProvider.notifier).applyIfOutdated(e);

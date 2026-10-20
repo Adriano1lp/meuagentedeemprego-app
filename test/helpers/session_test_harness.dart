@@ -1,5 +1,7 @@
+import 'package:agente_emprego/data/api_config.dart';
 import 'package:agente_emprego/data/repositories/auth_repository_impl.dart';
 import 'package:agente_emprego/data/services/biometric_auth_service.dart';
+import 'package:agente_emprego/data/session_unauthorized.dart';
 import 'package:agente_emprego/data/token_store.dart';
 import 'package:agente_emprego/presentation/providers/biometric_providers.dart';
 import 'package:agente_emprego/presentation/providers/chat_provider.dart';
@@ -11,6 +13,9 @@ import 'package:hive/hive.dart';
 MemoryTokenStore bindTestTokenStore({String? accessToken}) {
   final store = MemoryTokenStore(accessToken: accessToken);
   bindActiveTokenStore(store);
+  bindApiHttpClientAdapter(null);
+  bindUnauthorizedSessionHandler(null);
+  resetUnauthorizedSessionHandling();
   return store;
 }
 

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/api_config.dart';
 import '../../data/api_errors.dart';
 import '../../data/consent_outdated.dart';
+import '../../data/session_unauthorized.dart';
 import '../../data/repositories/chat_repository_impl.dart';
 import '../providers/consent_provider.dart';
 import '../providers/session_provider.dart';
@@ -21,6 +22,10 @@ String authenticatedPdfDownloadMessage(DioException error) {
       error,
       fallback: authenticatedPdfDownloadFailedMessage,
     );
+  }
+
+  if (shouldExpireSessionOnUnauthorized(error)) {
+    return sessionExpiredMessage;
   }
 
   final data = error.response?.data;
@@ -92,7 +97,9 @@ class AuthenticatedPdfOpener {
   }
 
   static String _buildDownloadFileName(String userId, Uri uri) {
-    final lastSegment = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
+    final lastSegment = uri.pathSegments.isNotEmpty
+        ? uri.pathSegments.last
+        : '';
     final safeUserId = userId
         .trim()
         .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_')
@@ -111,7 +118,8 @@ class AuthenticatedPdfOpener {
 
   static Uri _resolveDownloadUri(Uri uri) {
     final apiBaseUri = Uri.parse(ChatRepositoryImpl.apiBaseUrl);
-    final isUserFile = uri.pathSegments.length >= 3 &&
+    final isUserFile =
+        uri.pathSegments.length >= 3 &&
         uri.pathSegments[0] == 'users' &&
         uri.pathSegments[1] == 'me' &&
         uri.pathSegments[2] == 'files';

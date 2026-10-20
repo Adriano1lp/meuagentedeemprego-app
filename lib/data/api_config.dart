@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import 'session_unauthorized.dart';
 import 'token_store.dart';
 
 class ApiConfig {
@@ -65,6 +66,10 @@ Dio createApiDio({
     ),
   );
   dio.interceptors.add(SecureAuthInterceptor(tokenStore ?? activeTokenStore));
+  final testAdapter = _testHttpClientAdapter;
+  if (testAdapter != null) {
+    dio.httpClientAdapter = testAdapter;
+  }
   final debugLog = createSafeDebugLogInterceptor();
   if (debugLog != null) {
     dio.interceptors.add(debugLog);
@@ -89,27 +94,54 @@ LogInterceptor? createSafeDebugLogInterceptor({bool? isDebug}) {
   );
 }
 
+HttpClientAdapter? _testHttpClientAdapter;
+
+/// Adapter só para teste. Em produção fica null e o Dio usa a rede normal.
+void bindApiHttpClientAdapter(HttpClientAdapter? adapter) {
+  _testHttpClientAdapter = adapter;
+}
+
 class SecureAuthInterceptor extends Interceptor {
   SecureAuthInterceptor(this._store);
 
   final TokenStore _store;
 
   @override
-  void onRequest(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) {
-    _attach(options)
-        .then((_) => handler.next(options))
-        .catchError((Object error, StackTrace stackTrace) {
-          handler.reject(
-            DioException(
-              requestOptions: options,
-              error: error,
-              stackTrace: stackTrace,
-            ),
-          );
-        });
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    _attach(options).then((_) => handler.next(options)).catchError((
+      Object error,
+      StackTrace stackTrace,
+    ) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+    });
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (!shouldExpireSessionOnUnauthorized(err) ||
+        !beginUnauthorizedSessionHandling()) {
+      handler.next(err);
+      return;
+    }
+    if (!hasUnauthorizedSessionHandler) {
+      resetUnauthorizedSessionHandling();
+      handler.next(err);
+      return;
+    }
+
+    // Só o primeiro 401 encerrado aqui apaga a sessão e pede o login.
+    // handler.next fica para depois para a tela não tratar o erro antes.
+    notifyUnauthorizedSession()
+        .catchError((Object _) {
+          resetUnauthorizedSessionHandling();
+        })
+        .whenComplete(() => handler.next(err));
   }
 
   Future<void> _attach(RequestOptions options) async {

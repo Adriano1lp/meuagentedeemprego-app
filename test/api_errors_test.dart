@@ -1,4 +1,5 @@
 import 'package:agente_emprego/data/api_errors.dart';
+import 'package:agente_emprego/data/session_unauthorized.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -92,6 +93,73 @@ void main() {
       );
     });
 
+    test('401 com Bearer vira sessao expirada, sem o detail da API', () {
+      final error = _unauthorized('/auth/me', 'Token expirado');
+
+      expect(
+        extractApiErrorMessage(
+          error,
+          fallback: 'Falha ao autenticar com a API',
+        ),
+        sessionExpiredMessage,
+      );
+      expect(
+        () => rethrowApiError(error, fallback: 'Falha ao autenticar com a API'),
+        throwsA(
+          isA<SessionExpiredException>().having(
+            (error) => error.toString(),
+            'toString',
+            sessionExpiredMessage,
+          ),
+        ),
+      );
+    });
+
+    test('401 de login continua erro de credencial', () {
+      final error = _unauthorized('/auth/login', 'Email ou senha invalidos');
+
+      expect(
+        extractApiErrorMessage(
+          error,
+          fallback: 'Falha ao autenticar com a API',
+        ),
+        'HTTP 401: Email ou senha invalidos',
+      );
+      expect(
+        () => rethrowApiError(error, fallback: 'Falha ao autenticar com a API'),
+        throwsA(
+          allOf(
+            isA<Exception>(),
+            isNot(isA<SessionExpiredException>()),
+            predicate<Exception>(
+              (error) =>
+                  error.toString() ==
+                  'Exception: HTTP 401: Email ou senha invalidos',
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('401 sem Bearer nao encerra sessao', () {
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/users/me/status'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/users/me/status'),
+          statusCode: 401,
+          data: {'detail': 'Header Authorization obrigatorio'},
+        ),
+      );
+
+      expect(
+        extractApiErrorMessage(
+          error,
+          fallback: 'Falha ao autenticar com a API',
+        ),
+        'HTTP 401: Header Authorization obrigatorio',
+      );
+    });
+
     test('receiveTimeout nao vira falha generica', () {
       final error = DioException(
         requestOptions: RequestOptions(path: '/processar'),
@@ -104,4 +172,19 @@ void main() {
       );
     });
   });
+}
+
+DioException _unauthorized(String path, String detail) {
+  final options = RequestOptions(
+    path: path,
+    headers: {'Authorization': 'Bearer jwt-velho'},
+  );
+  return DioException(
+    requestOptions: options,
+    response: Response(
+      requestOptions: options,
+      statusCode: 401,
+      data: {'detail': detail},
+    ),
+  );
 }
