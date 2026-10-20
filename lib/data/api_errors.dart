@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import 'consent_outdated.dart';
+import 'session_unauthorized.dart';
 
 /// Fixed copy for HTTP 402 (monthly quota exhausted).
 /// The API body is ignored so the screen stays free of prices and links.
@@ -15,6 +16,10 @@ String extractApiErrorMessage(
   final status = error.response?.statusCode;
   if (status == 402) {
     return monthlyQuotaLimitMessage;
+  }
+
+  if (shouldExpireSessionOnUnauthorized(error)) {
+    return sessionExpiredMessage;
   }
 
   if (error.type == DioExceptionType.receiveTimeout ||
@@ -91,11 +96,10 @@ Never rethrowApiError(
   if (consent != null) {
     throw consent;
   }
+  if (shouldExpireSessionOnUnauthorized(error)) {
+    throw const SessionExpiredException();
+  }
   throw Exception(
-    extractApiErrorMessage(
-      error,
-      fallback: fallback,
-      apiBaseUrl: apiBaseUrl,
-    ),
+    extractApiErrorMessage(error, fallback: fallback, apiBaseUrl: apiBaseUrl),
   );
 }

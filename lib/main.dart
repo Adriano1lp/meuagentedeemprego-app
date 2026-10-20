@@ -10,6 +10,7 @@ import 'data/repositories/auth_repository_impl.dart';
 import 'data/token_store.dart';
 import 'presentation/app_navigator.dart';
 import 'presentation/screens/auth_screen.dart';
+import 'presentation/session_expiry_host.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/providers/consent_provider.dart';
 import 'presentation/providers/session_provider.dart';
@@ -31,9 +32,7 @@ Future<void> main() async {
 
   runApp(
     ProviderScope(
-      overrides: [
-        secureTokenStoreProvider.overrideWithValue(tokenStore),
-      ],
+      overrides: [secureTokenStoreProvider.overrideWithValue(tokenStore)],
       child: const MyApp(),
     ),
   );
@@ -211,15 +210,17 @@ class MyApp extends StatelessWidget {
       dividerColor: _border,
     );
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Agente de Emprego',
-      theme: theme,
-      navigatorKey: appNavigatorKey,
-      builder: (context, child) {
-        return ConsentGate(child: child ?? const SizedBox.shrink());
-      },
-      home: const AppEntryPoint(),
+    return SessionExpiryHost(
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Agente de Emprego',
+        theme: theme,
+        navigatorKey: appNavigatorKey,
+        builder: (context, child) {
+          return ConsentGate(child: child ?? const SizedBox.shrink());
+        },
+        home: const AppEntryPoint(),
+      ),
     );
   }
 }
@@ -253,7 +254,9 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
     }
 
     try {
-      final authToken = await ref.read(sessionProvider.notifier).readAccessToken();
+      final authToken = await ref
+          .read(sessionProvider.notifier)
+          .readAccessToken();
       if (authToken == null || authToken.trim().isEmpty) {
         await ref.read(sessionProvider.notifier).clear();
         if (mounted) {
@@ -265,25 +268,29 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
       }
       try {
         final currentUser = await _repository.getCurrentUser(authToken);
-        ref.read(consentProvider.notifier).applyFromUser(
-          termsVersion: currentUser.termsVersion,
-          privacyVersion: currentUser.privacyVersion,
-        );
+        ref
+            .read(consentProvider.notifier)
+            .applyFromUser(
+              termsVersion: currentUser.termsVersion,
+              privacyVersion: currentUser.privacyVersion,
+            );
         final status = await _repository.getUserStatus(authToken);
-        await ref.read(sessionProvider.notifier).saveSession(
-          authToken: authToken,
-          userId: currentUser.userId,
-          email: currentUser.email,
-          displayName: currentUser.displayName,
-          hasCv: status.hasCv && status.hasEmbeddings,
-        );
+        await ref
+            .read(sessionProvider.notifier)
+            .saveSession(
+              authToken: authToken,
+              userId: currentUser.userId,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              hasCv: status.hasCv && status.hasEmbeddings,
+            );
       } on ConsentOutdatedException catch (error) {
         ref.read(consentProvider.notifier).applyException(error);
         try {
           final status = await _repository.getUserStatus(authToken);
-          await ref.read(sessionProvider.notifier).updateHasCv(
-            status.hasCv && status.hasEmbeddings,
-          );
+          await ref
+              .read(sessionProvider.notifier)
+              .updateHasCv(status.hasCv && status.hasEmbeddings);
         } catch (_) {}
       }
     } catch (_) {
@@ -303,11 +310,7 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
     final session = ref.watch(sessionProvider);
 
     if (_isBootstrapping) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (!session.hasSession) {
