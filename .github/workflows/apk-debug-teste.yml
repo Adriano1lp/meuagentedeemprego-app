@@ -92,21 +92,24 @@ jobs:
 
           debug_line="$(printf '%s\n' "${xml}" | grep 'android:debuggable' || true)"
           echo "debuggable=${debug_line}"
-          if ! printf '%s\n' "${debug_line}" | grep -q '0xffffffff'; then
+          # aapt2 pode imprimir =true ou o booleano binário 0xffffffff.
+          if ! printf '%s\n' "${debug_line}" | grep -Eq '=true($|[^A-Za-z])|\(type 0x12\)0xffffffff'; then
             echo "::error::o APK de debug não está com android:debuggable=true"
             exit 1
           fi
+          echo "debuggable=true"
 
           clear_line="$(printf '%s\n' "${xml}" | grep 'android:usesCleartextTraffic' || true)"
-          if [ -z "${clear_line}" ]; then
-            echo "usesCleartextTraffic=ausente"
-          else
-            echo "usesCleartextTraffic=${clear_line}"
-          fi
-          if printf '%s\n' "${clear_line}" | grep -q '0xffffffff'; then
+          echo "usesCleartextTraffic=${clear_line:-ausente}"
+          if printf '%s\n' "${clear_line}" | grep -Eq '=true($|[^A-Za-z])|\(type 0x12\)0xffffffff'; then
             echo "::error::usesCleartextTraffic=true no APK"
             exit 1
           fi
+          if ! printf '%s\n' "${clear_line}" | grep -Eq '=false($|[^A-Za-z])|\(type 0x12\)0x0($|[^0-9A-Fa-f])'; then
+            echo "::error::usesCleartextTraffic não está false"
+            exit 1
+          fi
+          echo "usesCleartextTraffic=false"
 
           certs="$("${apksigner}" verify --print-certs "${apk_src}")"
           printf '%s\n' "${certs}" | grep -E 'certificate DN:|SHA-256 digest:' || true
