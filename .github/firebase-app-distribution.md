@@ -62,6 +62,8 @@ If any of the four secrets above is missing, the workflow fails before the relea
 
 The workflow does not echo the keystore, passwords, alias, or base64, and the decode step must not run under `set -x`. Local release builds can still use gitignored `android/key.properties`. CI does not write that file.
 
+Ao final do job, o passo "Apagar a upload key do runner" roda com `if: always()` e remove o diretório da keystore decodificada em `$RUNNER_TEMP`, inclusive quando um passo posterior falha. Esse passo não imprime o caminho.
+
 ## Money: tester group
 
 1. Firebase Console → MAE project → register Android app if needed (`br.com.meuagentedeemprego.app`) → copy App ID into `FIREBASE_APP_ID`.

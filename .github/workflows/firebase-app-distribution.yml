@@ -249,3 +249,28 @@ jobs:
             args+=(--testers "${FIREBASE_TESTERS}")
           fi
           firebase --non-interactive appdistribution:distribute "${args[@]}"
+
+      # Apaga a keystore decodificada mesmo se um passo posterior falhar.
+      # Não imprime caminho, senha, alias nem base64. Este passo não usa set -x.
+      - name: Apagar a upload key do runner
+        if: always()
+        env:
+          KEYSTORE_PATH: ${{ steps.upload_keystore.outputs.keystore_path }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_PATH}" ]; then
+            exit 0
+          fi
+          if [ -z "${RUNNER_TEMP:-}" ] || [ ! -d "${RUNNER_TEMP}" ]; then
+            echo "::error::RUNNER_TEMP indisponível. A upload key decodificada não foi apagada."
+            exit 1
+          fi
+          case "${KEYSTORE_PATH}" in
+            "${RUNNER_TEMP}"/upload-keystore.*/upload-keystore.jks)
+              rm -rf "$(dirname -- "${KEYSTORE_PATH}")"
+              ;;
+            *)
+              echo "::error::Caminho da upload key fora do diretório temporário esperado. Nada foi apagado."
+              exit 1
+              ;;
+          esac
