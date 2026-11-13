@@ -5,9 +5,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- Debug only. Local API is HTTP (127.0.0.1, emulator host 10.0.2.2).
-         Release and profile keep usesCleartextTraffic=false from src/main. -->
+    <!-- Nesta branch de teste o debug fala só com a API de produção, em HTTPS.
+         Cleartext fica desligado. -->
     <application
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         tools:replace="android:usesCleartextTraffic" />
 </manifest>

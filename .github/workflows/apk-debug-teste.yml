@@ -1,0 +1,140 @@
+# APK de debug só para teste no aparelho, a partir do PR #27.
+# Não é release, não vai para a Play e não usa secret nem upload key.
+# O gatilho de push é só a branch teste/apk-debug-pr27.
+
+name: APK debug de teste
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - teste/apk-debug-pr27
+
+permissions:
+  contents: read
+
+jobs:
+  apk-debug:
+    name: Analisa, testa e publica o APK debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Mesma revisão do .metadata (Flutter 3.41.7 / Dart 3.11.5).
+          flutter-version: '3.41.7'
+          channel: stable
+          cache: true
+
+      - name: Baixar dependências
+        run: flutter pub get
+
+      - name: Analisar
+        run: flutter analyze
+
+      - name: Testar
+        run: flutter test
+
+      - name: Gerar APK debug
+        run: |
+          set -euo pipefail
+          # Só a URL pública da API. O app lê API_BASE_URL em lib/data/api_config.dart.
+          # Sem secret, sem upload key. A assinatura é a debug key do runner.
+          flutter build apk --debug \
+            --dart-define=API_BASE_URL=https://meu-agente-de-emprego.onrender.com
+
+      - name: Conferir package, debuggable, certificado e cleartext
+        run: |
+          set -euo pipefail
+          apk_src="build/app/outputs/flutter-apk/app-debug.apk"
+          if [ ! -f "${apk_src}" ]; then
+            echo "::error::APK debug não encontrado em ${apk_src}"
+            exit 1
+          fi
+
+          sdk=""
+          for candidate in "${ANDROID_SDK_ROOT:-}" "${ANDROID_HOME:-}" /usr/local/lib/android/sdk; do
+            if [ -n "${candidate}" ] && [ -d "${candidate}/build-tools" ]; then
+              sdk="${candidate}"
+              break
+            fi
+          done
+          if [ -z "${sdk}" ]; then
+            echo "::error::SDK Android sem build-tools. Não dá para conferir o APK."
+            exit 1
+          fi
+
+          aapt2="$(find "${sdk}/build-tools" -type f -name aapt2 | sort -V | tail -1)"
+          apksigner="$(find "${sdk}/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          if [ -z "${aapt2}" ] || [ -z "${apksigner}" ]; then
+            echo "::error::aapt2 ou apksigner ausente no SDK."
+            exit 1
+          fi
+
+          xml="$("${aapt2}" dump xmltree "${apk_src}" --file AndroidManifest.xml)"
+          pkg="$(printf '%s\n' "${xml}" | sed -n 's/.*package="\([^"]*\)".*/\1/p' | head -1)"
+          echo "package=${pkg}"
+          if [ "${pkg}" != "br.com.meuagentedeemprego.app.debug" ]; then
+            echo "::error::package esperado br.com.meuagentedeemprego.app.debug, obtido: ${pkg}"
+            exit 1
+          fi
+
+          debug_line="$(printf '%s\n' "${xml}" | grep 'android:debuggable' || true)"
+          echo "debuggable=${debug_line}"
+          if ! printf '%s\n' "${debug_line}" | grep -q '0xffffffff'; then
+            echo "::error::o APK de debug não está com android:debuggable=true"
+            exit 1
+          fi
+
+          clear_line="$(printf '%s\n' "${xml}" | grep 'android:usesCleartextTraffic' || true)"
+          if [ -z "${clear_line}" ]; then
+            echo "usesCleartextTraffic=ausente"
+          else
+            echo "usesCleartextTraffic=${clear_line}"
+          fi
+          if printf '%s\n' "${clear_line}" | grep -q '0xffffffff'; then
+            echo "::error::usesCleartextTraffic=true no APK"
+            exit 1
+          fi
+
+          certs="$("${apksigner}" verify --print-certs "${apk_src}")"
+          printf '%s\n' "${certs}" | grep -E 'certificate DN:|SHA-256 digest:' || true
+          if ! printf '%s\n' "${certs}" | grep -q 'CN=Android Debug'; then
+            echo "::error::o certificado não é a Android Debug"
+            exit 1
+          fi
+
+          mkdir -p dist
+          cp "${apk_src}" dist/MAE-DEBUG-pr27-a9615672.apk
+          (
+            cd dist
+            sha256sum MAE-DEBUG-pr27-a9615672.apk | tee MAE-DEBUG-pr27-a9615672.apk.sha256
+          )
+          # O artifact só pode ter o APK e o hash. A debug keystore fica no runner.
+          find dist -type f ! -name 'MAE-DEBUG-pr27-a9615672.apk' ! -name 'MAE-DEBUG-pr27-a9615672.apk.sha256' -print
+          extra="$(find dist -type f ! -name 'MAE-DEBUG-pr27-a9615672.apk' ! -name 'MAE-DEBUG-pr27-a9615672.apk.sha256' | wc -l | tr -d ' ')"
+          if [ "${extra}" -ne 0 ]; then
+            echo "::error::dist tem arquivo além do APK e do .sha256"
+            exit 1
+          fi
+
+      - name: Publicar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAE-DEBUG-pr27-a9615672
+          path: |
+            dist/MAE-DEBUG-pr27-a9615672.apk
+            dist/MAE-DEBUG-pr27-a9615672.apk.sha256
+          retention-days: 3
+          if-no-files-found: error

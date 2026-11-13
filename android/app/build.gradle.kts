@@ -143,6 +143,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // APK de teste nesta branch. Não substitui o app de release.
+            applicationIdSuffix = ".debug"
+        }
         release {
             isDebuggable = false
             if (readyUploadKey != null) {
